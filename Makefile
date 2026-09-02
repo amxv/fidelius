@@ -44,6 +44,7 @@ check: fmt test vet site-check app-check
 
 build:
 	@mkdir -p $(DIST_DIR)
+	@rm -f $(DIST_DIR)/fidelius
 	@$(GO) build -trimpath -ldflags="$(LDFLAGS)" -o $(DIST_DIR)/fidelius ./cmd/fidelius
 	@FIDELIUS_VERSION=$(if $(filter dev,$(VERSION)),0.0.0,$(VERSION)) apps/macos/build.sh $(DIST_DIR)/Fidelius.app native
 

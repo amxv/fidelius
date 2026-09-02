@@ -31,7 +31,8 @@ body::before {
 
 .shell { width: min(1180px, calc(100% - 48px)); margin-inline: auto; }
 .site-header { height: 76px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--line); }
-.wordmark { font-family: Georgia, "Times New Roman", serif; font-size: 22px; font-style: italic; font-weight: 700; letter-spacing: -.03em; }
+.wordmark { display: inline-flex; align-items: center; gap: 8px; font-family: Georgia, "Times New Roman", serif; font-size: 22px; font-style: italic; font-weight: 700; letter-spacing: -.03em; }
+.brand-lock { width: 18px; height: 18px; flex: none; }
 .repo-link { color: var(--muted); font-size: 12px; transition: color .2s ease; }
 .repo-link:hover { color: var(--ink); }
 
@@ -53,9 +54,11 @@ body::before {
 .traffic { display: flex; gap: 7px; }
 .traffic span { width: 11px; height: 11px; border-radius: 50%; background: #c6c2b9; }
 .window-body { padding: 25px 27px 23px; font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
-.key-mark { width: 32px; height: 32px; display: grid; place-items: center; margin-bottom: 13px; border-radius: 8px; background: #e7e1d2; color: #7c6738; font-size: 24px; }
-.window-body h2 { margin: 0; font-size: 20px; letter-spacing: -.02em; }
-.window-body > p { margin: 7px 0 22px; color: #6a675f; font-size: 13px; line-height: 1.45; }
+.key-mark { width: 20px; height: 20px; margin-bottom: 10px; opacity: .65; }
+.window-body h2 { margin: 0; font-size: 18px; letter-spacing: -.02em; }
+.window-body > p { margin: 6px 0 10px; color: #6a675f; font-size: 12px; line-height: 1.45; }
+.preview-service { display: flex; gap: 8px; align-items: center; margin-bottom: 18px; color: #8a867d; font-size: 10px; }
+.preview-service code { color: #67635b; font-size: 10px; }
 .window-body label { display: block; margin-top: 15px; }
 .window-body label span { display: block; margin-bottom: 6px; color: #66635b; font-family: ui-monospace, "SFMono-Regular", monospace; font-size: 10px; font-weight: 600; }
 .fake-field { height: 35px; display: flex; align-items: center; padding: 0 10px; border: 1px solid #a8a49b; border-radius: 6px; background: #fff; color: #2b2a27; font-family: ui-monospace, "SFMono-Regular", monospace; font-size: 11px; letter-spacing: .12em; box-shadow: inset 0 1px 2px rgba(0,0,0,.04); }
@@ -113,3 +116,5 @@ footer span { font-family: Georgia, "Times New Roman", serif; font-size: 18px; f
   .how, .commands { padding-block: 76px; }
   .principle p { font-size: 24px; }
 }
+
+.wordmark img { width: 16px; height: 16px; }

@@ -1,6 +1,6 @@
 # Fidelius
 
-Fidelius allows agents to ask humans to enter API keys and saves them to macOS Keychain.
+Fidelius allows agents to ask humans to enter secrets and saves them to macOS Keychain.
 
 An agent runs one blocking command, a small native Mac window appears, and the human can paste one or more requested keys. Fidelius reports only whether the prompt completed and the character count for each value. The values themselves are never printed by Fidelius.
 
@@ -20,10 +20,10 @@ Ask for one key:
 fidelius -s my-app OPENAI_API_KEY
 ```
 
-Ask for several:
+Ask for several, with an optional message for the human:
 
 ```bash
-fidelius -s my-app OPENAI_API_KEY STRIPE_SECRET_KEY
+fidelius -s scraper -m "I need the Maps key to finish the scrape." GOOGLE_MAPS_API_KEY FIRECRAWL_API_KEY
 ```
 
 The command waits until the human saves or cancels the native prompt.

@@ -2,7 +2,7 @@
 import "../styles/global.css";
 
 const install = "curl -fsSL https://fidelius.ashray.xyz/install.sh | bash";
-const ask = "fidelius -s my-app OPENAI_API_KEY STRIPE_SECRET_KEY";
+const ask = 'fidelius -s scraper -m "I need these to finish the scrape." OPENAI_API_KEY STRIPE_SECRET_KEY';
 const retrieve = "security find-generic-password -s my-app -a OPENAI_API_KEY -w";
 ---
 
@@ -11,13 +11,13 @@ const retrieve = "security find-generic-password -s my-app -a OPENAI_API_KEY -w"
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width" />
-    <meta name="description" content="Fidelius lets agents ask humans for API keys and saves them to macOS Keychain." />
+    <meta name="description" content="Fidelius lets agents ask humans for secrets and saves them to macOS Keychain." />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <title>Fidelius — API keys without the terminal</title>
+    <title>Fidelius — secrets without the terminal</title>
   </head>
   <body>
     <header class="site-header shell">
-      <a class="wordmark" href="/">fidelius</a>
+      <a class="wordmark" href="/"><svg class="brand-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>fidelius</a>
       <a class="repo-link" href="https://github.com/amxv/fidelius">GitHub <span aria-hidden="true">↗</span></a>
     </header>
 
@@ -25,7 +25,7 @@ const retrieve = "security find-generic-password -s my-app -a OPENAI_API_KEY -w"
       <section class="hero shell">
         <div class="hero-copy">
           <p class="eyebrow">A tiny macOS utility for agents</p>
-          <h1>API keys,<br /><em>without the terminal.</em></h1>
+          <h1>Secrets,<br /><em>without the terminal.</em></h1>
           <p class="lede">
             Fidelius lets an agent open a small native window when it needs credentials.
             You paste the keys. They go to macOS Keychain. The agent keeps working.
@@ -45,16 +45,17 @@ const retrieve = "security find-generic-password -s my-app -a OPENAI_API_KEY -w"
               <span></span>
             </div>
             <div class="window-body">
-              <div class="key-mark" aria-hidden="true">⌁</div>
-              <h2>An agent needs 2 API keys.</h2>
-              <p>Paste the requested values below. They’ll be saved to macOS Keychain.</p>
+              <svg class="key-mark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+              <h2>I need these credentials to finish the setup.</h2>
+              <p>I need these to finish the scrape.</p>
+              <div class="preview-service"><span>Service</span><code>scraper</code></div>
               <label>
                 <span>OPENAI_API_KEY</span>
                 <div class="fake-field">••••••••••••••••••••••••</div>
               </label>
               <label>
                 <span>STRIPE_SECRET_KEY</span>
-                <div class="fake-field empty">Paste API key</div>
+                <div class="fake-field empty">Paste key</div>
               </label>
               <div class="window-actions">
                 <button>Cancel</button>
@@ -74,7 +75,7 @@ const retrieve = "security find-generic-password -s my-app -a OPENAI_API_KEY -w"
           <article>
             <span>01</span>
             <h3>Agent asks</h3>
-            <p>The agent runs Fidelius with the Keychain service and the API key names it needs.</p>
+            <p>The agent runs Fidelius with the Keychain service and the secret names it needs.</p>
           </article>
           <article>
             <span>02</span>
@@ -111,7 +112,7 @@ const retrieve = "security find-generic-password -s my-app -a OPENAI_API_KEY -w"
       </section>
 
       <section class="principle shell">
-        <p>Fidelius never prints API key values.</p>
+        <p>Fidelius never prints secret values.</p>
         <span>The CLI blocks until you save or cancel, then returns a clean status to the agent.</span>
       </section>
     </main>

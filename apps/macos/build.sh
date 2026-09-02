@@ -11,10 +11,12 @@ if [[ ! "${bundle_version}" =~ ^[0-9]+(\.[0-9]+)*$ ]]; then
   bundle_version="0.0.0"
 fi
 binary="${output}/Contents/MacOS/fidelius-ui"
+resources="${output}/Contents/Resources"
 
 rm -rf "${output}"
-mkdir -p "$(dirname "${binary}")"
+mkdir -p "$(dirname "${binary}")" "${resources}"
 cp "${component_root}/Info.plist" "${output}/Contents/Info.plist"
+cp "${component_root}/Resources/AppIcon.icns" "${resources}/AppIcon.icns"
 /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString ${bundle_version}" "${output}/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${bundle_version}" "${output}/Contents/Info.plist"
 

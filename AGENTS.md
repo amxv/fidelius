@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Fidelius is a tiny macOS utility for one job: an agent can ask a human for API keys in a native GUI, then Fidelius saves those values to macOS Keychain.
+Fidelius is a tiny macOS utility for one job: an agent can ask a human for secrets in a native GUI, then Fidelius saves those values to macOS Keychain.
 
 ## Product boundaries
 
@@ -9,9 +9,10 @@ Keep Fidelius intentionally small.
 - It is not a secret manager.
 - It does not expose `get`, `show`, `pipe`, provider-specific integrations, or its own secret store.
 - Retrieval and composition belong to Apple's `/usr/bin/security` CLI and normal Unix tools.
-- Fidelius must never print API key values to stdout or stderr.
+- Fidelius must never print secret values to stdout or stderr.
 - The CLI blocks until the GUI is saved or cancelled and may report only safe metadata such as names and character counts.
 - Multiple requested keys should share one normal app window that remains available through Dock/Cmd-Tab and does not float above other apps.
+- `-m/--message` may provide a short human-readable explanation for why the keys are needed.
 
 ## Architecture
 

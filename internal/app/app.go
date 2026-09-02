@@ -20,6 +20,7 @@ var launchPrompt = launchNativePrompt
 
 type request struct {
 	service  string
+	message  string
 	accounts []string
 }
 
@@ -55,13 +56,13 @@ func Run(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	if result.Cancelled {
-		fmt.Fprintln(stdout, "Cancelled. No API keys were saved.")
+		fmt.Fprintln(stdout, "Cancelled. No secrets were saved.")
 		return 2
 	}
 
-	noun := "API keys"
+	noun := "secrets"
 	if len(result.Saved) == 1 {
-		noun = "API key"
+		noun = "secret"
 	}
 	fmt.Fprintf(stdout, "Saved %d %s to macOS Keychain (service: %s).\n", len(result.Saved), noun, req.service)
 	for _, item := range result.Saved {
@@ -83,6 +84,14 @@ func parseRequest(args []string) (request, error) {
 			req.service = strings.TrimSpace(args[i])
 		case strings.HasPrefix(arg, "--service="):
 			req.service = strings.TrimSpace(strings.TrimPrefix(arg, "--service="))
+		case arg == "-m" || arg == "--message":
+			if i+1 >= len(args) {
+				return request{}, fmt.Errorf("%s requires a value", arg)
+			}
+			i++
+			req.message = strings.TrimSpace(args[i])
+		case strings.HasPrefix(arg, "--message="):
+			req.message = strings.TrimSpace(strings.TrimPrefix(arg, "--message="))
 		case arg == "--":
 			req.accounts = append(req.accounts, args[i+1:]...)
 			i = len(args)
@@ -97,17 +106,17 @@ func parseRequest(args []string) (request, error) {
 		return request{}, fmt.Errorf("missing Keychain service (use -s SERVICE)")
 	}
 	if len(req.accounts) == 0 {
-		return request{}, fmt.Errorf("provide at least one API key name")
+		return request{}, fmt.Errorf("provide at least one secret name")
 	}
 
 	seen := make(map[string]struct{}, len(req.accounts))
 	for i, account := range req.accounts {
 		account = strings.TrimSpace(account)
 		if account == "" {
-			return request{}, fmt.Errorf("API key names cannot be empty")
+			return request{}, fmt.Errorf("secret names cannot be empty")
 		}
 		if _, ok := seen[account]; ok {
-			return request{}, fmt.Errorf("duplicate API key name %q", account)
+			return request{}, fmt.Errorf("duplicate secret name %q", account)
 		}
 		seen[account] = struct{}{}
 		req.accounts[i] = account
@@ -139,6 +148,9 @@ func launchNativePrompt(req request) (promptResult, error) {
 	}
 
 	args := []string{"--service", req.service}
+	if req.message != "" {
+		args = append(args, "--message", req.message)
+	}
 	args = append(args, req.accounts...)
 	cmd := exec.Command(helper, args...)
 	var stdout bytes.Buffer
@@ -182,23 +194,25 @@ func helperExecutable() (string, error) {
 }
 
 func printHelp(w io.Writer) {
-	fmt.Fprintln(w, "fidelius allows agents to ask humans to enter API keys and saves them to macOS Keychain.")
+	fmt.Fprintln(w, "fidelius allows agents to ask humans to enter secrets and saves them to macOS Keychain.")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Usage:")
-	fmt.Fprintln(w, "  fidelius -s SERVICE ACCOUNT [ACCOUNT...]")
+	fmt.Fprintln(w, "  fidelius -s SERVICE [-m MESSAGE] ACCOUNT [ACCOUNT...]")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Options:")
 	fmt.Fprintln(w, "  -s, --service SERVICE  Keychain service name")
+	fmt.Fprintln(w, "  -m, --message MESSAGE  Short explanation shown to the human")
 	fmt.Fprintln(w, "  -h, --help             Show help")
 	fmt.Fprintln(w, "  -v, --version          Show version")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Examples:")
 	fmt.Fprintln(w, "  fidelius -s my-app OPENAI_API_KEY")
+	fmt.Fprintln(w, `  fidelius -s scraper -m "I need the Maps key to finish the scrape." GOOGLE_MAPS_API_KEY`)
 	fmt.Fprintln(w, "  fidelius -s my-app OPENAI_API_KEY STRIPE_SECRET_KEY")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "The command waits until the human saves or cancels the prompt.")
-	fmt.Fprintln(w, "Fidelius never prints API key values.")
+	fmt.Fprintln(w, "Fidelius never prints secret values.")
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, "Retrieve a saved key with macOS security:")
+	fmt.Fprintln(w, "Retrieve a saved secret with macOS security:")
 	fmt.Fprintln(w, "  security find-generic-password -s my-app -a OPENAI_API_KEY -w")
 }

@@ -1,8 +1,10 @@
 import AppKit
 import Foundation
+import QuartzCore
 
 struct FideliusRequest {
     let service: String
+    let message: String?
     let accounts: [String]
 }
 
@@ -16,10 +18,69 @@ private struct PromptResponse: Codable {
     let saved: [SavedKey]
 }
 
+private final class FideliusSecureTextField: NSSecureTextField {
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        configure()
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        configure()
+    }
+
+    private func configure() {
+        focusRingType = .none
+        wantsLayer = true
+        layer?.cornerRadius = 6
+        layer?.masksToBounds = false
+    }
+
+    func setFocused(_ focused: Bool) {
+        guard let layer else { return }
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        layer.borderWidth = focused ? 2 : 0
+        layer.borderColor = focused ? NSColor.controlAccentColor.cgColor : NSColor.clear.cgColor
+        CATransaction.commit()
+    }
+}
+
+private final class AdaptiveTintView: NSView {
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        wantsLayer = true
+        updateTint()
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        wantsLayer = true
+        updateTint()
+    }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        updateTint()
+    }
+
+    private func updateTint() {
+        guard let layer else { return }
+        let appearance = effectiveAppearance.bestMatch(from: [.darkAqua, .aqua])
+        let color: NSColor
+        if appearance == .darkAqua {
+            color = NSColor.black.withAlphaComponent(0.34)
+        } else {
+            color = NSColor.white.withAlphaComponent(0.38)
+        }
+        layer.backgroundColor = color.cgColor
+    }
+}
+
 final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTextFieldDelegate {
     private let request: FideliusRequest
     private var window: NSWindow?
-    private var fields: [String: NSSecureTextField] = [:]
+    private var fields: [String: FideliusSecureTextField] = [:]
     private var saveButton: NSButton?
     private var didFinish = false
 
@@ -45,14 +106,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTe
         cancel(nil)
     }
 
+    func controlTextDidBeginEditing(_ obj: Notification) {
+        (obj.object as? FideliusSecureTextField)?.setFocused(true)
+    }
+
+    func controlTextDidEndEditing(_ obj: Notification) {
+        (obj.object as? FideliusSecureTextField)?.setFocused(false)
+    }
+
     func controlTextDidChange(_ obj: Notification) {
         updateSaveButton()
     }
 
     @objc private func save(_ sender: Any?) {
         let missing = request.accounts.first { account in
-            guard let field = fields[account] else { return true }
-            return field.stringValue.isEmpty
+            fields[account]?.stringValue.isEmpty ?? true
         }
         if let missing, let field = fields[missing] {
             NSSound.beep()
@@ -100,7 +168,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTe
     private func showError(_ message: String) {
         let alert = NSAlert()
         alert.alertStyle = .warning
-        alert.messageText = "Fidelius couldn’t save the API keys"
+        alert.messageText = "Couldn’t save the secrets"
         alert.informativeText = message
         if let window {
             alert.beginSheetModal(for: window)
@@ -110,144 +178,219 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTe
     }
 
     private func showWindow() {
-        let count = request.accounts.count
-        let height = min(620, max(330, 240 + count * 72))
-        let frame = NSRect(x: 0, y: 0, width: 520, height: height)
+        let contentWidth: CGFloat = 376
+        let frame = NSRect(x: 0, y: 0, width: 420, height: 270)
         let window = NSWindow(
             contentRect: frame,
-            styleMask: [.titled, .closable, .miniaturizable],
+            styleMask: [.titled, .closable, .miniaturizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
         window.title = "Fidelius"
         window.titlebarAppearsTransparent = true
-        window.isMovableByWindowBackground = true
+        window.titleVisibility = .visible
+        window.backgroundColor = .clear
+        window.isOpaque = false
         window.level = .normal
+        window.animationBehavior = .none
+        window.isMovableByWindowBackground = true
         window.delegate = self
         window.isReleasedWhenClosed = false
-        window.center()
         self.window = window
 
         let root = NSStackView()
         root.orientation = .vertical
         root.alignment = .leading
-        root.spacing = 14
+        root.spacing = 11
         root.translatesAutoresizingMaskIntoConstraints = false
 
+        let header = makeHeader(width: contentWidth)
+        root.addArrangedSubview(header)
+        root.setCustomSpacing(13, after: header)
+
+        let serviceRow = NSStackView()
+        serviceRow.orientation = .horizontal
+        serviceRow.alignment = .centerY
+        serviceRow.spacing = 9
+        let serviceTitle = NSTextField(labelWithString: "Service")
+        serviceTitle.font = .systemFont(ofSize: 11, weight: .medium)
+        serviceTitle.textColor = .tertiaryLabelColor
+        let serviceValue = NSTextField(labelWithString: request.service)
+        serviceValue.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
+        serviceValue.textColor = .secondaryLabelColor
+        serviceValue.lineBreakMode = .byTruncatingMiddle
+        serviceRow.addArrangedSubview(serviceTitle)
+        serviceRow.addArrangedSubview(serviceValue)
+        root.addArrangedSubview(serviceRow)
+
+        let separator = NSBox()
+        separator.boxType = .separator
+        separator.translatesAutoresizingMaskIntoConstraints = false
+        separator.widthAnchor.constraint(equalToConstant: contentWidth).isActive = true
+        root.addArrangedSubview(separator)
+        root.setCustomSpacing(13, after: separator)
+
+        let fieldStack = makeFieldStack(width: contentWidth)
+        if request.accounts.count <= 5 {
+            root.addArrangedSubview(fieldStack)
+        } else {
+            let scrollView = NSScrollView()
+            scrollView.drawsBackground = false
+            scrollView.hasVerticalScroller = true
+            scrollView.borderType = .noBorder
+            scrollView.translatesAutoresizingMaskIntoConstraints = false
+            let document = NSView()
+            document.translatesAutoresizingMaskIntoConstraints = false
+            document.addSubview(fieldStack)
+            NSLayoutConstraint.activate([
+                fieldStack.leadingAnchor.constraint(equalTo: document.leadingAnchor, constant: 2),
+                fieldStack.trailingAnchor.constraint(equalTo: document.trailingAnchor, constant: -2),
+                fieldStack.topAnchor.constraint(equalTo: document.topAnchor, constant: 2),
+                fieldStack.bottomAnchor.constraint(equalTo: document.bottomAnchor, constant: -2),
+                document.widthAnchor.constraint(equalToConstant: contentWidth),
+            ])
+            scrollView.documentView = document
+            scrollView.widthAnchor.constraint(equalToConstant: contentWidth).isActive = true
+            scrollView.heightAnchor.constraint(equalToConstant: 290).isActive = true
+            root.addArrangedSubview(scrollView)
+        }
+
+        root.setCustomSpacing(16, after: fieldStack)
+        root.addArrangedSubview(makeButtons(width: contentWidth))
+
+        let content = NSVisualEffectView()
+        content.material = .underWindowBackground
+        content.blendingMode = .behindWindow
+        content.state = .active
+        content.translatesAutoresizingMaskIntoConstraints = false
+
+        let tint = AdaptiveTintView(frame: .zero)
+        tint.translatesAutoresizingMaskIntoConstraints = false
+        content.addSubview(tint)
+        content.addSubview(root)
+        NSLayoutConstraint.activate([
+            tint.leadingAnchor.constraint(equalTo: content.leadingAnchor),
+            tint.trailingAnchor.constraint(equalTo: content.trailingAnchor),
+            tint.topAnchor.constraint(equalTo: content.topAnchor),
+            tint.bottomAnchor.constraint(equalTo: content.bottomAnchor),
+            root.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 22),
+            root.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -22),
+            root.topAnchor.constraint(equalTo: content.safeAreaLayoutGuide.topAnchor, constant: 14),
+            root.bottomAnchor.constraint(equalTo: content.bottomAnchor, constant: -18),
+        ])
+        window.contentView = content
+
+        content.layoutSubtreeIfNeeded()
+        let fittingHeight = content.fittingSize.height
+        window.setContentSize(NSSize(width: 420, height: min(540, max(220, fittingHeight))))
+        window.center()
+        window.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+
+        if let first = request.accounts.first, let field = fields[first] {
+            window.makeFirstResponder(field)
+            field.setFocused(true)
+        }
+    }
+
+    private func makeHeader(width: CGFloat) -> NSView {
+        let row = NSStackView()
+        row.orientation = .horizontal
+        row.alignment = .top
+        row.spacing = 9
+
         let symbol = NSImageView()
-        symbol.image = NSImage(systemSymbolName: "key.fill", accessibilityDescription: "Key")
-        symbol.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 24, weight: .medium)
+        symbol.image = NSImage(systemSymbolName: "lock.fill", accessibilityDescription: "Lock")
+        symbol.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 15, weight: .semibold)
         symbol.contentTintColor = .secondaryLabelColor
-        root.addArrangedSubview(symbol)
+        symbol.translatesAutoresizingMaskIntoConstraints = false
+        symbol.widthAnchor.constraint(equalToConstant: 18).isActive = true
+        symbol.heightAnchor.constraint(equalToConstant: 18).isActive = true
 
-        let title = NSTextField(labelWithString: count == 1 ? "An agent needs an API key." : "An agent needs \(count) API keys.")
-        title.font = .systemFont(ofSize: 22, weight: .semibold)
-        root.addArrangedSubview(title)
-
-        let detail = wrappingLabel(
-            "Paste the requested values below. Fidelius will save them to macOS Keychain under service “\(request.service)” and then close."
+        let explanation = request.message?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let message = wrappingLabel(
+            explanation?.isEmpty == false ? explanation! : "Paste the requested secrets.",
+            width: width - 27
         )
-        detail.textColor = .secondaryLabelColor
-        root.addArrangedSubview(detail)
+        message.font = .systemFont(ofSize: 13.5, weight: .medium)
+        message.textColor = .labelColor
+        message.maximumNumberOfLines = 3
 
-        let scrollView = NSScrollView()
-        scrollView.drawsBackground = false
-        scrollView.hasVerticalScroller = count > 5
-        scrollView.borderType = .noBorder
-        scrollView.translatesAutoresizingMaskIntoConstraints = false
+        row.addArrangedSubview(symbol)
+        row.addArrangedSubview(message)
+        row.widthAnchor.constraint(equalToConstant: width).isActive = true
+        return row
+    }
 
-        let fieldStack = NSStackView()
-        fieldStack.orientation = .vertical
-        fieldStack.alignment = .leading
-        fieldStack.spacing = 13
-        fieldStack.translatesAutoresizingMaskIntoConstraints = false
+    private func makeFieldStack(width: CGFloat) -> NSStackView {
+        let stack = NSStackView()
+        stack.orientation = .vertical
+        stack.alignment = .leading
+        stack.spacing = 12
+        stack.translatesAutoresizingMaskIntoConstraints = false
 
         for account in request.accounts {
             let group = NSStackView()
             group.orientation = .vertical
             group.alignment = .leading
-            group.spacing = 6
-            group.translatesAutoresizingMaskIntoConstraints = false
+            group.spacing = 5
 
             let label = NSTextField(labelWithString: account)
-            label.font = .monospacedSystemFont(ofSize: 12, weight: .medium)
+            label.font = .monospacedSystemFont(ofSize: 11, weight: .medium)
             label.textColor = .secondaryLabelColor
 
-            let field = NSSecureTextField()
-            field.placeholderString = "Paste API key"
-            field.font = .systemFont(ofSize: 14)
+            let field = FideliusSecureTextField(frame: .zero)
+            field.placeholderString = "Paste secret"
+            field.font = .systemFont(ofSize: 13)
             field.delegate = self
             field.translatesAutoresizingMaskIntoConstraints = false
-            field.heightAnchor.constraint(equalToConstant: 34).isActive = true
-            field.widthAnchor.constraint(equalToConstant: 472).isActive = true
+            field.widthAnchor.constraint(equalToConstant: width).isActive = true
             fields[account] = field
 
             group.addArrangedSubview(label)
             group.addArrangedSubview(field)
-            fieldStack.addArrangedSubview(group)
+            stack.addArrangedSubview(group)
         }
 
-        let documentView = NSView()
-        documentView.translatesAutoresizingMaskIntoConstraints = false
-        documentView.addSubview(fieldStack)
-        NSLayoutConstraint.activate([
-            fieldStack.leadingAnchor.constraint(equalTo: documentView.leadingAnchor),
-            fieldStack.trailingAnchor.constraint(equalTo: documentView.trailingAnchor),
-            fieldStack.topAnchor.constraint(equalTo: documentView.topAnchor),
-            fieldStack.bottomAnchor.constraint(equalTo: documentView.bottomAnchor),
-            documentView.widthAnchor.constraint(equalToConstant: 472),
-        ])
-        scrollView.documentView = documentView
-        root.addArrangedSubview(scrollView)
-        scrollView.widthAnchor.constraint(equalToConstant: 472).isActive = true
-        scrollView.heightAnchor.constraint(equalToConstant: min(CGFloat(count * 66), 300)).isActive = true
+        stack.widthAnchor.constraint(equalToConstant: width).isActive = true
+        return stack
+    }
 
-        let buttonRow = NSStackView()
-        buttonRow.orientation = .horizontal
-        buttonRow.alignment = .centerY
-        buttonRow.spacing = 8
+    private func makeButtons(width: CGFloat) -> NSView {
+        let row = NSStackView()
+        row.orientation = .horizontal
+        row.alignment = .centerY
+        row.spacing = 8
 
         let spacer = NSView()
         spacer.translatesAutoresizingMaskIntoConstraints = false
-        buttonRow.addArrangedSubview(spacer)
+        row.addArrangedSubview(spacer)
 
         let cancelButton = NSButton(title: "Cancel", target: self, action: #selector(cancel(_:)))
         cancelButton.keyEquivalent = "\u{1b}"
-        buttonRow.addArrangedSubview(cancelButton)
+        cancelButton.bezelStyle = .rounded
+        row.addArrangedSubview(cancelButton)
 
-        let saveTitle = count == 1 ? "Save Key" : "Save Keys"
-        let saveButton = NSButton(title: saveTitle, target: self, action: #selector(save(_:)))
+        let saveButton = NSButton(
+            title: request.accounts.count == 1 ? "Save Secret" : "Save Secrets",
+            target: self,
+            action: #selector(save(_:))
+        )
         saveButton.keyEquivalent = "\r"
         saveButton.bezelStyle = .rounded
         saveButton.isEnabled = false
         self.saveButton = saveButton
-        buttonRow.addArrangedSubview(saveButton)
+        row.addArrangedSubview(saveButton)
 
-        root.addArrangedSubview(buttonRow)
-        buttonRow.widthAnchor.constraint(equalToConstant: 472).isActive = true
-
-        let content = NSView()
-        content.addSubview(root)
-        NSLayoutConstraint.activate([
-            root.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 24),
-            root.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -24),
-            root.topAnchor.constraint(equalTo: content.topAnchor, constant: 24),
-            root.bottomAnchor.constraint(lessThanOrEqualTo: content.bottomAnchor, constant: -20),
-        ])
-        window.contentView = content
-
-        window.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
-        if let first = request.accounts.first, let field = fields[first] {
-            window.makeFirstResponder(field)
-        }
+        row.widthAnchor.constraint(equalToConstant: width).isActive = true
+        return row
     }
 
-    private func wrappingLabel(_ text: String) -> NSTextField {
+    private func wrappingLabel(_ text: String, width: CGFloat) -> NSTextField {
         let label = NSTextField(wrappingLabelWithString: text)
-        label.font = .systemFont(ofSize: 13)
+        label.font = .systemFont(ofSize: 12.5)
         label.maximumNumberOfLines = 3
-        label.preferredMaxLayoutWidth = 472
+        label.preferredMaxLayoutWidth = width
         return label
     }
 
