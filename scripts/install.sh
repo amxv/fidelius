@@ -35,9 +35,25 @@ trap 'rm -rf "${temporary}"' EXIT
 archive="${temporary}/${asset_name}"
 checksum="${archive}.sha256"
 
+download_file() {
+  local url="$1"
+  local destination="$2"
+  curl \
+    --fail \
+    --location \
+    --silent \
+    --show-error \
+    --connect-timeout 10 \
+    --max-time 120 \
+    --retry 3 \
+    --retry-delay 1 \
+    "${url}" \
+    -o "${destination}"
+}
+
 log "downloading ${asset_url}"
-curl --fail --location --silent --show-error "${asset_url}" -o "${archive}" || die "download failed"
-curl --fail --location --silent --show-error "${checksum_url}" -o "${checksum}" || die "checksum download failed"
+download_file "${asset_url}" "${archive}" || die "download failed"
+download_file "${checksum_url}" "${checksum}" || die "checksum download failed"
 
 expected="$(awk 'NR==1 {print $1}' "${checksum}")"
 actual="$(shasum -a 256 "${archive}" | awk '{print $1}')"
