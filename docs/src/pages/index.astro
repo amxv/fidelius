@@ -2,8 +2,14 @@
 import "../styles/global.css";
 
 const install = "curl -fsSL https://fidelius.ashray.xyz/install.sh | bash";
-const ask = 'fidelius -s scraper -m "I need these to finish the scrape." OPENAI_API_KEY STRIPE_SECRET_KEY';
-const retrieve = "security find-generic-password -s my-app -a OPENAI_API_KEY -w";
+const ask = `fidelius \\
+  -s restaurant-scraping-demo \\
+  -m "I need the Google Maps API key to finish scraping restaurant menus." \\
+  GOOGLE_MAPS_API_KEY`;
+const retrieve = `security find-generic-password \\
+  -s restaurant-scraping-demo \\
+  -a GOOGLE_MAPS_API_KEY \\
+  -w`;
 ---
 
 <!doctype html>
@@ -13,113 +19,103 @@ const retrieve = "security find-generic-password -s my-app -a OPENAI_API_KEY -w"
     <meta name="viewport" content="width=device-width" />
     <meta name="description" content="Fidelius lets agents ask humans for secrets and saves them to macOS Keychain." />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <title>Fidelius — secrets without the terminal</title>
+    <title>Fidelius — secrets from humans to agents</title>
   </head>
   <body>
-    <header class="site-header shell">
-      <a class="wordmark" href="/"><svg class="brand-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>fidelius</a>
-      <a class="repo-link" href="https://github.com/amxv/fidelius">GitHub <span aria-hidden="true">↗</span></a>
+    <header class="nav shell">
+      <a class="brand" href="/" aria-label="Fidelius home">
+        <img src="/app-icon.svg" alt="" />
+        <span>Fidelius</span>
+      </a>
+      <a class="github" href="https://github.com/amxv/fidelius">GitHub <span aria-hidden="true">↗</span></a>
     </header>
 
     <main>
       <section class="hero shell">
-        <div class="hero-copy">
-          <p class="eyebrow">A tiny macOS utility for agents</p>
-          <h1>Secrets,<br /><em>without the terminal.</em></h1>
-          <p class="lede">
-            Fidelius lets an agent open a small native window when it needs credentials.
-            You paste the keys. They go to macOS Keychain. The agent keeps working.
-          </p>
-          <div class="install-line" aria-label="Install Fidelius">
-            <code>{install}</code>
-            <button class="copy" data-copy={install}>Copy</button>
-          </div>
-          <p class="platform-note">macOS · open source · no account required</p>
+        <p class="kicker">A tiny macOS utility for agents</p>
+        <h1>Agents ask.<br /><span>You paste.</span></h1>
+        <p class="hero-copy">
+          Fidelius gives agents a native way to ask you for secrets. Paste once, save to macOS Keychain,
+          and let the agent keep working without putting credentials in chat or sending you to the terminal.
+        </p>
+        <div class="install" aria-label="Install Fidelius">
+          <code>{install}</code>
+          <button data-copy={install}>Copy</button>
         </div>
+        <p class="meta">macOS 13+ · Apple Silicon + Intel · open source</p>
 
-        <div class="window-wrap" aria-label="Fidelius app preview">
-          <div class="window">
-            <div class="titlebar">
-              <div class="traffic"><span></span><span></span><span></span></div>
-              <span>Fidelius</span>
-              <span></span>
-            </div>
-            <div class="window-body">
-              <svg class="key-mark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
-              <h2>I need these credentials to finish the setup.</h2>
-              <p>I need these to finish the scrape.</p>
-              <div class="preview-service"><span>Service</span><code>scraper</code></div>
-              <label>
-                <span>OPENAI_API_KEY</span>
-                <div class="fake-field">••••••••••••••••••••••••</div>
-              </label>
-              <label>
-                <span>STRIPE_SECRET_KEY</span>
-                <div class="fake-field empty">Paste key</div>
-              </label>
-              <div class="window-actions">
-                <button>Cancel</button>
-                <button class="primary">Save Keys</button>
-              </div>
-            </div>
-          </div>
+        <div class="product-shot">
+          <div class="glow" aria-hidden="true"></div>
+          <img src="/fidelius-window.png" alt="The real Fidelius macOS window requesting a Google Maps API key" />
         </div>
       </section>
 
-      <section class="how shell">
-        <div class="section-intro">
-          <p class="eyebrow">One job</p>
-          <h2>The agent asks. You paste. Fidelius disappears.</h2>
-        </div>
-        <div class="steps">
-          <article>
-            <span>01</span>
-            <h3>Agent asks</h3>
-            <p>The agent runs Fidelius with the Keychain service and the secret names it needs.</p>
-          </article>
-          <article>
-            <span>02</span>
-            <h3>You paste</h3>
-            <p>A normal Mac app window stays available in Cmd-Tab while you provision the keys.</p>
-          </article>
-          <article>
-            <span>03</span>
-            <h3>Keychain keeps them</h3>
-            <p>Press Enter. Fidelius saves the values, reports only character counts, and closes.</p>
-          </article>
-        </div>
-      </section>
-
-      <section class="commands shell">
-        <div class="command-copy">
-          <p class="eyebrow">Unix on either side</p>
-          <h2>Fidelius only handles the human part.</h2>
+      <section class="story shell">
+        <div class="story-heading">
+          <p class="eyebrow">A realistic handoff</p>
+          <h2>The moment an agent gets blocked, it asks you.</h2>
           <p>
-            It is not a secret manager. Once the keys are saved, agents use Apple’s familiar
-            <code>security</code> CLI to pipe them wherever they need to go.
+            No provider integration. No new secret store. Just one Unix command that waits for the human part.
           </p>
         </div>
-        <div class="terminal-card">
+
+        <div class="terminal" aria-label="Example Fidelius command">
+          <div class="terminal-bar"><span></span><span></span><span></span></div>
+          <pre><code>{ask}</code></pre>
+        </div>
+      </section>
+
+      <section class="keychain-band">
+        <div class="shell keychain-grid">
           <div>
-            <span>Ask for keys</span>
-            <code>{ask}</code>
+            <p class="eyebrow">Keychain stays the source of truth</p>
+            <h2>Fidelius does one thing, then gets out of the way.</h2>
+            <p>
+              Once you save, the secret is an ordinary generic password in macOS Keychain. Agents keep using Apple's
+              familiar <code>security</code> CLI and normal Unix composition.
+            </p>
           </div>
-          <div>
-            <span>Read later with Keychain</span>
-            <code>{retrieve}</code>
+          <div class="code-card">
+            <span>Read it later</span>
+            <pre><code>{retrieve}</code></pre>
           </div>
         </div>
       </section>
 
-      <section class="principle shell">
-        <p>Fidelius never prints secret values.</p>
-        <span>The CLI blocks until you save or cancel, then returns a clean status to the agent.</span>
+      <section class="features shell">
+        <article>
+          <div class="feature-icon">⌘</div>
+          <h3>Wait as long as you need.</h3>
+          <p>The prompt is a normal Mac app window. Cmd-Tab away, provision the secret, and come back when you're ready.</p>
+        </article>
+        <article>
+          <div class="feature-icon">•••</div>
+          <h3>Ask for several at once.</h3>
+          <p>One invocation can request multiple named secrets without exposing any of their values to the agent.</p>
+        </article>
+        <article>
+          <div class="feature-icon">Ⅱ</div>
+          <h3>Parallel agents are fine.</h3>
+          <p>Each invocation owns its own window, so several agents can wait on independent Fidelius prompts at the same time.</p>
+        </article>
+      </section>
+
+      <section class="closing shell">
+        <img src="/app-icon.svg" alt="" />
+        <h2>A tiny human interface for agent credentials.</h2>
+        <div class="install install-bottom">
+          <code>{install}</code>
+          <button data-copy={install}>Copy</button>
+        </div>
       </section>
     </main>
 
     <footer class="shell">
-      <span>fidelius</span>
-      <a href="https://github.com/amxv/fidelius">Apache-2.0 · GitHub ↗</a>
+      <span>Fidelius</span>
+      <div>
+        <a href="https://github.com/amxv/fidelius">GitHub</a>
+        <span>Apache-2.0</span>
+      </div>
     </footer>
 
     <script>
