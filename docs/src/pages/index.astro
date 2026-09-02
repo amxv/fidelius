@@ -1,0 +1,137 @@
+---
+import "../styles/global.css";
+
+const install = "curl -fsSL https://fidelius.ashray.xyz/install.sh | bash";
+const ask = "fidelius -s my-app OPENAI_API_KEY STRIPE_SECRET_KEY";
+const retrieve = "security find-generic-password -s my-app -a OPENAI_API_KEY -w";
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width" />
+    <meta name="description" content="Fidelius lets agents ask humans for API keys and saves them to macOS Keychain." />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>Fidelius — API keys without the terminal</title>
+  </head>
+  <body>
+    <header class="site-header shell">
+      <a class="wordmark" href="/">fidelius</a>
+      <a class="repo-link" href="https://github.com/amxv/fidelius">GitHub <span aria-hidden="true">↗</span></a>
+    </header>
+
+    <main>
+      <section class="hero shell">
+        <div class="hero-copy">
+          <p class="eyebrow">A tiny macOS utility for agents</p>
+          <h1>API keys,<br /><em>without the terminal.</em></h1>
+          <p class="lede">
+            Fidelius lets an agent open a small native window when it needs credentials.
+            You paste the keys. They go to macOS Keychain. The agent keeps working.
+          </p>
+          <div class="install-line" aria-label="Install Fidelius">
+            <code>{install}</code>
+            <button class="copy" data-copy={install}>Copy</button>
+          </div>
+          <p class="platform-note">macOS · open source · no account required</p>
+        </div>
+
+        <div class="window-wrap" aria-label="Fidelius app preview">
+          <div class="window">
+            <div class="titlebar">
+              <div class="traffic"><span></span><span></span><span></span></div>
+              <span>Fidelius</span>
+              <span></span>
+            </div>
+            <div class="window-body">
+              <div class="key-mark" aria-hidden="true">⌁</div>
+              <h2>An agent needs 2 API keys.</h2>
+              <p>Paste the requested values below. They’ll be saved to macOS Keychain.</p>
+              <label>
+                <span>OPENAI_API_KEY</span>
+                <div class="fake-field">••••••••••••••••••••••••</div>
+              </label>
+              <label>
+                <span>STRIPE_SECRET_KEY</span>
+                <div class="fake-field empty">Paste API key</div>
+              </label>
+              <div class="window-actions">
+                <button>Cancel</button>
+                <button class="primary">Save Keys</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="how shell">
+        <div class="section-intro">
+          <p class="eyebrow">One job</p>
+          <h2>The agent asks. You paste. Fidelius disappears.</h2>
+        </div>
+        <div class="steps">
+          <article>
+            <span>01</span>
+            <h3>Agent asks</h3>
+            <p>The agent runs Fidelius with the Keychain service and the API key names it needs.</p>
+          </article>
+          <article>
+            <span>02</span>
+            <h3>You paste</h3>
+            <p>A normal Mac app window stays available in Cmd-Tab while you provision the keys.</p>
+          </article>
+          <article>
+            <span>03</span>
+            <h3>Keychain keeps them</h3>
+            <p>Press Enter. Fidelius saves the values, reports only character counts, and closes.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="commands shell">
+        <div class="command-copy">
+          <p class="eyebrow">Unix on either side</p>
+          <h2>Fidelius only handles the human part.</h2>
+          <p>
+            It is not a secret manager. Once the keys are saved, agents use Apple’s familiar
+            <code>security</code> CLI to pipe them wherever they need to go.
+          </p>
+        </div>
+        <div class="terminal-card">
+          <div>
+            <span>Ask for keys</span>
+            <code>{ask}</code>
+          </div>
+          <div>
+            <span>Read later with Keychain</span>
+            <code>{retrieve}</code>
+          </div>
+        </div>
+      </section>
+
+      <section class="principle shell">
+        <p>Fidelius never prints API key values.</p>
+        <span>The CLI blocks until you save or cancel, then returns a clean status to the agent.</span>
+      </section>
+    </main>
+
+    <footer class="shell">
+      <span>fidelius</span>
+      <a href="https://github.com/amxv/fidelius">Apache-2.0 · GitHub ↗</a>
+    </footer>
+
+    <script>
+      document.querySelectorAll("[data-copy]").forEach((button) => {
+        button.addEventListener("click", async () => {
+          const value = button.getAttribute("data-copy");
+          if (!value) return;
+          await navigator.clipboard.writeText(value);
+          const original = button.textContent;
+          button.textContent = "Copied";
+          setTimeout(() => { button.textContent = original; }, 1200);
+        });
+      });
+    </script>
+  </body>
+</html>

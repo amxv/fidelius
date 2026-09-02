@@ -5,126 +5,47 @@ on:
     tags:
       - "v*"
 
-env:
-  GO_VERSION: "1.26"
-  NODE_VERSION: "22"
-  CLI_BINARY: "mycli"
-  CLI_ENTRYPOINT: "mycli"
-  CLI_MODULE: "github.com/amxv/go-cli-template"
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
 permissions:
   contents: write
 
 jobs:
-  quality:
-    runs-on: ubuntu-latest
+  release:
+    runs-on: macos-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Go
-        uses: actions/setup-go@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
         with:
-          go-version: ${{ env.GO_VERSION }}
+          go-version-file: go.mod
           cache: false
+      - uses: oven-sh/setup-bun@v2
+      - run: cd docs && bun install --frozen-lockfile
+      - run: make check
 
-      - name: Go test
-        run: go test ./...
-
-      - name: Go vet
-        run: go vet ./...
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-
-      - name: Node checks
-        run: npm run test
-
-  build-binaries:
-    needs: quality
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        include:
-          - goos: darwin
-            goarch: amd64
-          - goos: darwin
-            goarch: arm64
-          - goos: linux
-            goarch: amd64
-          - goos: linux
-            goarch: arm64
-          - goos: windows
-            goarch: amd64
-          - goos: windows
-            goarch: arm64
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: ${{ env.GO_VERSION }}
-          cache: false
-
-      - name: Build binary
+      - name: Build universal macOS release
         run: |
-          mkdir -p dist
-          EXT=""
-          if [ "${{ matrix.goos }}" = "windows" ]; then
-            EXT=".exe"
-          fi
           VERSION="${GITHUB_REF_NAME#v}"
-          CGO_ENABLED=0 GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} \
-            go build -trimpath -ldflags="-s -w -X ${{ env.CLI_MODULE }}/internal/buildinfo.Version=${VERSION}" \
-            -o "dist/${{ env.CLI_BINARY }}_${{ matrix.goos }}_${{ matrix.goarch }}${EXT}" ./cmd/${{ env.CLI_ENTRYPOINT }}
+          make build-universal VERSION="$VERSION"
+          mkdir -p dist/package
+          cp dist/fidelius dist/package/fidelius
+          cp -R dist/Fidelius.app dist/package/Fidelius.app
+          tar -C dist/package -czf dist/fidelius-darwin-universal.tar.gz fidelius Fidelius.app
+          (cd dist && shasum -a 256 fidelius-darwin-universal.tar.gz > fidelius-darwin-universal.tar.gz.sha256)
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: binary-${{ matrix.goos }}-${{ matrix.goarch }}
-          path: dist/*
+      - name: Smoke test installer
+        run: |
+          smoke="$(mktemp -d)"
+          FIDELIUS_INSTALL_DIR="$smoke/bin" \
+          FIDELIUS_ASSET_URL="file://${GITHUB_WORKSPACE}/dist/fidelius-darwin-universal.tar.gz" \
+          FIDELIUS_CHECKSUM_URL="file://${GITHUB_WORKSPACE}/dist/fidelius-darwin-universal.tar.gz.sha256" \
+            bash scripts/install.sh
+          "$smoke/bin/fidelius" --help >/dev/null
+          "$smoke/bin/fidelius" --version
+          codesign --verify --deep --strict "$smoke/bin/Fidelius.app"
 
-  github-release:
-    needs: build-binaries
-    runs-on: ubuntu-latest
-    steps:
-      - name: Download artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: dist
-          merge-multiple: true
-
-      - name: Publish GitHub release assets
+      - name: Publish GitHub release
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/*
-
-  npm-publish:
-    needs: github-release
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          registry-url: "https://registry.npmjs.org"
-
-      - name: Set npm version from tag
-        run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          VERSION="$VERSION" node -e "const fs=require('fs');const p=require('./package.json');p.version=process.env.VERSION;fs.writeFileSync('package.json', JSON.stringify(p, null, 2)+'\\n');"
-
-      - name: Publish to npm
-        run: npm publish --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          generate_release_notes: true
+          files: |
+            dist/fidelius-darwin-universal.tar.gz
+            dist/fidelius-darwin-universal.tar.gz.sha256

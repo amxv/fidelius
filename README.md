@@ -1,146 +1,73 @@
-# go-cli-template
+# Fidelius
 
-Minimal template for shipping a Go CLI with:
+Fidelius allows agents to ask humans to enter API keys and saves them to macOS Keychain.
 
-- one-command identity bootstrap after GitHub template cloning
-- a local command runner (`Makefile`)
-- npm global install wrapper (`bin/mycli.js`)
-- automatic GitHub Release + npm publish on tag
-- bundled ZueDocs-powered docs site
+An agent runs one blocking command, a small native Mac window appears, and the human can paste one or more requested keys. Fidelius reports only whether the prompt completed and the character count for each value. The values themselves are never printed by Fidelius.
 
-## Install (template example)
+## Install
 
 ```bash
-npm i -g @amxv/go-cli-template
-mycli --help
+curl -fsSL https://fidelius.ashray.xyz/install.sh | bash
 ```
 
-## Commands in this starter
+Fidelius currently supports macOS. The installer downloads the latest universal release from GitHub, verifies its SHA-256 checksum, and installs `fidelius` plus `Fidelius.app` into `~/.local/bin` by default.
+
+## Use
+
+Ask for one key:
 
 ```bash
-mycli --help
-mycli hello
-mycli hello <name>
-mycli --version
+fidelius -s my-app OPENAI_API_KEY
 ```
 
-## Docs site
-
-This template includes an Astro docs site powered by ZueDocs.
+Ask for several:
 
 ```bash
-bun install
-bun run docs:dev
-bun run docs:check
-bun run docs:build
+fidelius -s my-app OPENAI_API_KEY STRIPE_SECRET_KEY
 ```
 
-Customize the docs alongside the CLI:
+The command waits until the human saves or cancels the native prompt.
 
-- `src/data/docs.ts`: site name, repo URL, footer sections, nav, categories
-- `src/pages/index.astro`: landing page
-- `src/content/docs/*.md`: guides and command reference
-
-## Start a new CLI
-
-Create the repository from the directory where the new clone should be placed:
+Afterward, use Apple's normal Keychain CLI:
 
 ```bash
-gh repo create acme/pluck \
-  --public \
-  --template amxv/go-cli-template \
-  --clone
+security find-generic-password -s my-app -a OPENAI_API_KEY -w
 ```
 
-Then run the identity bootstrap from the new repository root:
+That keeps Fidelius intentionally small: it handles human input and Keychain storage, while `security` handles retrieval and Unix composition.
+
+## Development
 
 ```bash
-cd pluck
-make bootstrap BOOTSTRAP_ARGS='--cli-name pluck \
-  --binary-name pluck \
-  --go-module github.com/acme/pluck \
-  --github-owner acme --github-repo pluck \
-  --npm-package @acme/pluck \
-  --description "A fast file picker" \
-  --license Apache-2.0'
+cd docs && bun install && cd ..
+make check
+make build
+make install-local
 ```
 
-The bootstrap command runs from the cloned repository root and never creates or
-clones another repository. Omit `--public` in the GitHub command for the safe
-private default, while public repositories are the normal path for anonymous npm
-installs. If a private repo is intentionally paired with anonymous npm installs,
-pass `--visibility private --anonymous-npm` to the bootstrap command for the warning.
+`make build` produces the local Go CLI and native Swift app under `dist/`. `make build-universal` produces universal macOS binaries suitable for release packaging.
 
-For any existing clone, `make bootstrap` accepts the same identity options:
+The landing page is a small Astro site under `docs/`:
 
 ```bash
-make bootstrap BOOTSTRAP_ARGS='--cli-name pluck \
-  --binary-name pluck \
-  --go-module github.com/acme/pluck \
-  --github-owner acme --github-repo pluck \
-  --npm-package @acme/pluck \
-  --description "A fast file picker" \
-  --homepage https://pluck.dev \
-  --canonical-url https://pluck.dev \
-  --license Apache-2.0'
+cd docs
+bun run dev
+bun run check
+bun run build
 ```
 
-The bootstrap script updates the command path, Go module, npm metadata, GitHub URLs,
-Makefile, release workflow, postinstall metadata, docs configuration, and license
-references together. Apache-2.0 is built in and does not require an extra CLI.
-Other license-generator names listed by `license-generator --list` are supported
-when that optional CLI is installed. Without it, bootstrap keeps the project on
-Apache-2.0 and prints a warning.
+The canonical installer lives at `scripts/install.sh` and is served at `https://fidelius.ashray.xyz/install.sh` by the Astro endpoint.
 
-## Customize the CLI
+## Releases
 
-After bootstrap, replace starter logic:
-
-- `internal/app/app.go`
-- `internal/app/app_test.go`
-
-Update bundled docs as the command surface changes:
-
-- `src/data/docs.ts`
-- `src/pages/index.astro`
-- `src/content/docs/*.md`
-
-## Release flow
-
-Future releases are tag-driven. Edit `src/content/docs/changelog.md` manually,
-run the checks, commit and push the changelog, then push a `v*` tag:
+Releases are tag-driven GitHub Releases only. There is no npm package.
 
 ```bash
 make check
-bun run docs:check
-bun run docs:build
-# edit src/content/docs/changelog.md
-git add src/content/docs/changelog.md
-git commit -m "docs: update changelog for v0.2.0"
-git push origin HEAD
-make release-tag VERSION=0.2.0
+make release-tag VERSION=0.1.0
 ```
 
-GitHub Actions builds the release binaries, creates the GitHub Release, and
-publishes npm. Configure the `NPM_TOKEN` GitHub secret once before the first
-release. No local token synchronization or release orchestration is required.
-
-## Project layout
-
-- `cmd/mycli/main.go`: CLI entrypoint
-- `internal/app/`: command logic
-- `internal/buildinfo/`: build-time version plumbing for `--version`
-- `scripts/postinstall.js`: installs binary from GitHub release (falls back to local `go build`)
-- `scripts/setup.js`: initializes the repeated project identity fields
-- `.agents/skills/release/SKILL.md`: manual changelog and tag release checklist
-- `.github/workflows/release.yml`: automated release pipeline
-- `project.config.json`: canonical project identity
-- `src/`: ZueDocs-powered documentation site
-- `astro.config.mjs`: docs site build config
-- `AGENTS.md`: instructions for coding agents
-- `CONTRIBUTORS.md`: maintainer/release operations
-
-See `AGENTS.md` and `CONTRIBUTORS.md` for complete dev/release instructions.
+GitHub Actions builds a universal macOS CLI and `Fidelius.app`, ad-hoc signs the app, smoke-tests the installer, and publishes the tarball plus SHA-256 checksum.
 
 ## License
 
