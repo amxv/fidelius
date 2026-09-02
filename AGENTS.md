@@ -1,36 +1,44 @@
 # AGENTS.md
 
-Fidelius is a tiny macOS utility for one job: an agent can ask a human for secrets in a native GUI, then Fidelius saves those values to macOS Keychain.
+Fidelius lets agents securely ask humans for secrets through a native GUI without printing those secret values into the terminal or chat.
 
-## Product boundaries
+## Product contract
 
-Keep Fidelius intentionally small.
+Keep Fidelius intentionally tiny.
 
-- It is not a secret manager.
-- It does not expose `get`, `show`, `pipe`, provider-specific integrations, or its own secret store.
-- Retrieval and composition belong to Apple's `/usr/bin/security` CLI and normal Unix tools.
-- Fidelius must never print secret values to stdout or stderr.
-- The CLI blocks until the GUI is saved or cancelled and may report only safe metadata such as names and character counts.
-- Multiple requested keys should share one normal app window that remains available through Dock/Cmd-Tab and does not float above other apps.
-- `-m/--message` may provide a short human-readable explanation for why the keys are needed.
+- `fidelius ask [-m MESSAGE] NAME [NAME...]` opens the human prompt.
+- On success, stdout contains **only** the path to a private temporary directory.
+- The directory contains one file per requested secret, named exactly after the requested secret.
+- Secret values must never be written to Fidelius stdout or stderr.
+- Directories are mode `0700`; secret files are mode `0600`.
+- Temporary sessions auto-delete after the configured timeout. Default: 5 minutes.
+- `fidelius timeout [DURATION]` is the only persistent preference surface.
+- Fidelius is not a secret manager and must not learn provider-specific destinations such as Keychain, dotenv, GitHub, Vercel, etc. Agents use ordinary Unix tools after the handoff.
+- Human interaction and downstream secret use are intentionally decoupled so agents can retry failed commands without asking the human again.
+- Multiple concurrent invocations must remain independent.
 
 ## Architecture
 
-- `cmd/fidelius/`: Go CLI entrypoint.
-- `internal/app/`: argument parsing, helper discovery, and safe status output.
-- `apps/macos/`: native AppKit prompt; values are handed to Apple’s `/usr/bin/security` over stdin for Keychain storage.
-- `scripts/install.sh`: release installer served unchanged from the landing-page domain.
-- `docs/`: self-contained minimal Astro landing page. There is no multi-page docs site.
-- `.github/workflows/`: macOS CI and tag-driven GitHub Release publishing.
+- `cmd/fidelius/` — process entrypoint.
+- `internal/app/` — command parsing, timeout config, private temporary sessions, auto-delete, and OS prompt adapters.
+- `apps/macos/` — native AppKit GUI. Secret values return to Go through an inherited private file descriptor.
+- Linux — uses Zenity when available, KDialog as fallback. The Go core remains toolkit-independent.
+- `scripts/install.sh` — macOS/Linux installer served unchanged from the landing-page domain.
+- `docs/` — self-contained Astro landing page.
+- `.github/workflows/` — macOS + Linux CI and tag-driven releases.
 
-The installed layout keeps the components adjacent:
+Installed macOS layout:
 
 ```text
 ~/.local/bin/fidelius
 ~/.local/bin/Fidelius.app
 ```
 
-The Go binary launches `Fidelius.app/Contents/MacOS/fidelius-ui`, waits for it to exit, then returns safe status to the caller.
+Installed Linux layout:
+
+```text
+~/.local/bin/fidelius
+```
 
 ## Commands
 
@@ -38,15 +46,15 @@ The Go binary launches `Fidelius.app/Contents/MacOS/fidelius-ui`, waits for it t
 make check
 make build
 make build-universal
+make build-linux
 make install-local
-cd docs && bun run dev
-cd docs && bun run build
+make site-build
 ```
 
-Before pushing, run `make check`, `make site-build`, and `git diff --check`.
+Before pushing, run `make check`, `make site-build`, relevant release builds, and `git diff --check`.
 
 ## Distribution
 
-The app is ad-hoc signed with `codesign --sign -`, packaged with the Go CLI in a GitHub Release tarball, and installed through `curl` + `tar` without disabling Gatekeeper or modifying quarantine attributes. The installer verifies the release SHA-256 checksum before installation.
+The macOS app is ad-hoc signed with `codesign --sign -`. Release archives are installed through `curl` + `tar` after SHA-256 verification. Do not disable Gatekeeper or strip quarantine attributes.
 
-The repository may remain private during development. Anonymous installation from GitHub Releases only works after the repository is made public and a release is published.
+Linux release binaries are static Go binaries. `fidelius ask` requires either `zenity` or `kdialog` on a graphical Linux desktop.

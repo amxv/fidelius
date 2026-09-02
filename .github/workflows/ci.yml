@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 jobs:
-  check:
+  macos:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v7
@@ -25,3 +25,23 @@ jobs:
           file dist/fidelius
           file dist/Fidelius.app/Contents/MacOS/fidelius-ui
           codesign --verify --deep --strict dist/Fidelius.app
+
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: false
+      - uses: oven-sh/setup-bun@v2
+      - run: cd docs && bun install --frozen-lockfile
+      - run: make check
+      - run: make build-linux VERSION=0.0.0
+      - run: |
+          file dist/fidelius-linux-amd64
+          file dist/fidelius-linux-arm64
+          dist/fidelius-linux-amd64 --help >/dev/null
+          config="$(mktemp -d)"
+          FIDELIUS_CONFIG_DIR="$config" dist/fidelius-linux-amd64 timeout 30s
+          test "$(FIDELIUS_CONFIG_DIR="$config" dist/fidelius-linux-amd64 timeout)" = "Auto-delete timeout: 30s"

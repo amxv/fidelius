@@ -2,14 +2,19 @@
 import "../styles/global.css";
 
 const install = "curl -fsSL https://fidelius.ashray.xyz/install.sh | bash";
-const ask = `fidelius \\
-  -s restaurant-scraping-demo \\
+const ask = `secrets=$(fidelius ask \\
   -m "I need the Google Maps API key to finish scraping restaurant menus." \\
-  GOOGLE_MAPS_API_KEY`;
-const retrieve = `security find-generic-password \\
+  GOOGLE_MAPS_API_KEY)`;
+const github = `gh secret set GOOGLE_MAPS_API_KEY \\
+  < "$secrets/GOOGLE_MAPS_API_KEY"`;
+const dotenv = `printf 'GOOGLE_MAPS_API_KEY=' >> .env.local
+cat "$secrets/GOOGLE_MAPS_API_KEY" >> .env.local
+printf '\\n' >> .env.local`;
+const keychain = `{ cat "$secrets/GOOGLE_MAPS_API_KEY"; printf '\\n';
+  cat "$secrets/GOOGLE_MAPS_API_KEY"; printf '\\n'; } |
+security add-generic-password -U \\
   -s restaurant-scraping-demo \\
-  -a GOOGLE_MAPS_API_KEY \\
-  -w`;
+  -a GOOGLE_MAPS_API_KEY -w`;
 ---
 
 <!doctype html>
@@ -17,9 +22,9 @@ const retrieve = `security find-generic-password \\
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width" />
-    <meta name="description" content="Fidelius lets agents ask humans for secrets and saves them to macOS Keychain." />
+    <meta name="description" content="Fidelius lets agents securely ask humans for secrets through native macOS and Linux prompts." />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <title>Fidelius — secrets from humans to agents</title>
+    <title>Fidelius — agents ask, humans paste</title>
   </head>
   <body>
     <header class="nav shell">
@@ -32,17 +37,17 @@ const retrieve = `security find-generic-password \\
 
     <main>
       <section class="hero shell">
-        <p class="kicker">A tiny macOS utility for agents</p>
+        <p class="kicker">Human-in-the-loop secrets</p>
         <h1>Agents ask.<br /><span>You paste.</span></h1>
         <p class="hero-copy">
-          Fidelius gives agents a native way to ask you for secrets. Paste once, save to macOS Keychain,
-          and let the agent keep working without putting credentials in chat or sending you to the terminal.
+          Fidelius opens a native prompt when an agent needs a secret. You paste once. The agent gets private,
+          short-lived files it can use with the Unix tools it already knows.
         </p>
         <div class="install" aria-label="Install Fidelius">
           <code>{install}</code>
           <button data-copy={install}>Copy</button>
         </div>
-        <p class="meta">macOS 13+ · Apple Silicon + Intel · open source</p>
+        <p class="meta">macOS + Linux · auto-delete after 5m by default · open source</p>
 
         <div class="product-shot">
           <div class="glow" aria-hidden="true"></div>
@@ -52,57 +57,93 @@ const retrieve = `security find-generic-password \\
 
       <section class="story shell">
         <div class="story-heading">
-          <p class="eyebrow">A realistic handoff</p>
-          <h2>The moment an agent gets blocked, it asks you.</h2>
+          <p class="eyebrow">One new command</p>
+          <h2>Ask the human. Then go back to Unix.</h2>
           <p>
-            No provider integration. No new secret store. Just one Unix command that waits for the human part.
+            Fidelius returns only a private temporary directory path. Inside is one file per requested secret.
+            Values never appear in Fidelius stdout or stderr.
           </p>
         </div>
 
         <div class="terminal" aria-label="Example Fidelius command">
           <div class="terminal-bar"><span></span><span></span><span></span></div>
           <pre><code>{ask}</code></pre>
+          <div class="terminal-result">
+            <span>returns</span>
+            <code>/tmp/fidelius-501/1788330000-q7Kx2p/</code>
+          </div>
         </div>
       </section>
 
-      <section class="keychain-band">
-        <div class="shell keychain-grid">
+      <section class="unix-band">
+        <div class="shell unix-heading">
+          <p class="eyebrow">No destination APIs</p>
+          <h2>Use the tools you already know.</h2>
+          <p>Fidelius does not know about dotenv, GitHub, Keychain, Vercel, or your scripts. It hands you files and gets out of the way.</p>
+        </div>
+        <div class="shell unix-grid">
+          <article class="usage-card">
+            <span>.env.local</span>
+            <pre><code>{dotenv}</code></pre>
+          </article>
+          <article class="usage-card dark-card">
+            <span>GitHub Actions</span>
+            <pre><code>{github}</code></pre>
+          </article>
+          <article class="usage-card">
+            <span>macOS Keychain</span>
+            <pre><code>{keychain}</code></pre>
+          </article>
+        </div>
+      </section>
+
+      <section class="lifetime shell">
+        <div>
+          <p class="eyebrow">Retry-friendly by design</p>
+          <h2>Temporary, not one-shot.</h2>
+          <p>
+            If the next command fails, fix it and try again with the same files. Fidelius cleans them up for you
+            after the auto-delete timeout, so asking the human and using the secret stay separate.
+          </p>
+        </div>
+        <div class="timeout-card">
           <div>
-            <p class="eyebrow">Keychain stays the source of truth</p>
-            <h2>Fidelius does one thing, then gets out of the way.</h2>
-            <p>
-              Once you save, the secret is an ordinary generic password in macOS Keychain. Agents keep using Apple's
-              familiar <code>security</code> CLI and normal Unix composition.
-            </p>
+            <span>Default</span>
+            <strong>5 minutes</strong>
           </div>
-          <div class="code-card">
-            <span>Read it later</span>
-            <pre><code>{retrieve}</code></pre>
-          </div>
+          <pre><code>fidelius timeout        # show current
+fidelius timeout 10m    # change it
+fidelius timeout 30s
+fidelius timeout 2h</code></pre>
         </div>
       </section>
 
       <section class="features shell">
         <article>
-          <div class="feature-icon">⌘</div>
-          <h3>Wait as long as you need.</h3>
-          <p>The prompt is a normal Mac app window. Cmd-Tab away, provision the secret, and come back when you're ready.</p>
+          <div class="feature-icon">•••</div>
+          <h3>Never printed.</h3>
+          <p>Only the directory path reaches stdout. Secret values stay in the native prompt, memory, and private files.</p>
         </article>
         <article>
-          <div class="feature-icon">•••</div>
-          <h3>Ask for several at once.</h3>
-          <p>One invocation can request multiple named secrets without exposing any of their values to the agent.</p>
+          <div class="feature-icon">↻</div>
+          <h3>Safe to retry.</h3>
+          <p>The agent can run, debug, and rerun downstream commands without asking you for the same secret again.</p>
+        </article>
+        <article>
+          <div class="feature-icon">⌘</div>
+          <h3>Native desktop UX.</h3>
+          <p>AppKit on macOS. Zenity on GTK desktops, with KDialog fallback on KDE. No webview or Electron.</p>
         </article>
         <article>
           <div class="feature-icon">Ⅱ</div>
           <h3>Parallel agents are fine.</h3>
-          <p>Each invocation owns its own window, so several agents can wait on independent Fidelius prompts at the same time.</p>
+          <p>Each invocation has its own prompt and temporary directory, so several agents can wait independently.</p>
         </article>
       </section>
 
       <section class="closing shell">
         <img src="/app-icon.svg" alt="" />
-        <h2>A tiny human interface for agent credentials.</h2>
+        <h2>A tiny human interface for agent secrets.</h2>
         <div class="install install-bottom">
           <code>{install}</code>
           <button data-copy={install}>Copy</button>

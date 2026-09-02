@@ -6,13 +6,14 @@ allowed-tools: Bash, Read
 
 # Release Fidelius
 
-Fidelius releases are GitHub Releases only. There is no npm publishing step.
+Fidelius publishes GitHub Release archives for macOS and Linux. There is no npm package.
 
 Before tagging:
 
 ```bash
 make check
 make site-build
+make build-linux VERSION=x.y.z
 git diff --check
 git status --short --branch
 ```
@@ -23,9 +24,13 @@ Confirm `main` is pushed and clean, then:
 make release-tag VERSION=x.y.z
 ```
 
-The `v*` workflow builds the universal macOS Go binary and native app, ad-hoc signs `Fidelius.app`, smoke-tests `scripts/install.sh`, and publishes:
+The `v*` workflow builds, smoke-tests, and publishes:
 
 - `fidelius-darwin-universal.tar.gz`
-- `fidelius-darwin-universal.tar.gz.sha256`
+- `fidelius-linux-amd64.tar.gz`
+- `fidelius-linux-arm64.tar.gz`
+- one `.sha256` file for each archive
 
-Watch the workflow and verify the release assets before announcing the release. Anonymous installer downloads require the GitHub repository to be public.
+The macOS archive includes the ad-hoc-signed `Fidelius.app`. Linux uses Zenity or KDialog from the user's desktop environment and therefore ships only the static Go binary.
+
+Watch both platform jobs and the final publish job to completion. Verify all six assets before announcing the release.

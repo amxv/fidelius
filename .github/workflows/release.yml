@@ -9,7 +9,7 @@ permissions:
   contents: write
 
 jobs:
-  release:
+  macos:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v7
@@ -20,8 +20,7 @@ jobs:
       - uses: oven-sh/setup-bun@v2
       - run: cd docs && bun install --frozen-lockfile
       - run: make check
-
-      - name: Build universal macOS release
+      - name: Build macOS release
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
           make build-universal VERSION="$VERSION"
@@ -30,8 +29,7 @@ jobs:
           cp -R dist/Fidelius.app dist/package/Fidelius.app
           tar -C dist/package -czf dist/fidelius-darwin-universal.tar.gz fidelius Fidelius.app
           (cd dist && shasum -a 256 fidelius-darwin-universal.tar.gz > fidelius-darwin-universal.tar.gz.sha256)
-
-      - name: Smoke test installer
+      - name: Smoke test macOS installer
         run: |
           smoke="$(mktemp -d)"
           FIDELIUS_INSTALL_DIR="$smoke/bin" \
@@ -41,7 +39,62 @@ jobs:
           "$smoke/bin/fidelius" --help >/dev/null
           "$smoke/bin/fidelius" --version
           codesign --verify --deep --strict "$smoke/bin/Fidelius.app"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-release
+          path: |
+            dist/fidelius-darwin-universal.tar.gz
+            dist/fidelius-darwin-universal.tar.gz.sha256
 
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: false
+      - name: Test Linux core
+        run: go test ./...
+      - name: Build Linux releases
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          mkdir -p dist
+          for arch in amd64 arm64; do
+            CGO_ENABLED=0 GOOS=linux GOARCH="$arch" \
+              go build -trimpath -ldflags="-s -w -X github.com/amxv/fidelius/internal/buildinfo.Version=$VERSION" \
+              -o "dist/fidelius-$arch" ./cmd/fidelius
+            mkdir -p "dist/package-$arch"
+            cp "dist/fidelius-$arch" "dist/package-$arch/fidelius"
+            tar -C "dist/package-$arch" -czf "dist/fidelius-linux-$arch.tar.gz" fidelius
+            (cd dist && shasum -a 256 "fidelius-linux-$arch.tar.gz" > "fidelius-linux-$arch.tar.gz.sha256")
+          done
+      - name: Smoke test Linux installer
+        run: |
+          smoke="$(mktemp -d)"
+          FIDELIUS_INSTALL_DIR="$smoke/bin" \
+          FIDELIUS_ASSET_URL="file://${GITHUB_WORKSPACE}/dist/fidelius-linux-amd64.tar.gz" \
+          FIDELIUS_CHECKSUM_URL="file://${GITHUB_WORKSPACE}/dist/fidelius-linux-amd64.tar.gz.sha256" \
+            bash scripts/install.sh
+          "$smoke/bin/fidelius" --help >/dev/null
+          "$smoke/bin/fidelius" --version
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-release
+          path: |
+            dist/fidelius-linux-amd64.tar.gz
+            dist/fidelius-linux-amd64.tar.gz.sha256
+            dist/fidelius-linux-arm64.tar.gz
+            dist/fidelius-linux-arm64.tar.gz.sha256
+
+  publish:
+    needs: [macos, linux]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
       - name: Publish GitHub release
         uses: softprops/action-gh-release@v2
         with:
@@ -49,3 +102,7 @@ jobs:
           files: |
             dist/fidelius-darwin-universal.tar.gz
             dist/fidelius-darwin-universal.tar.gz.sha256
+            dist/fidelius-linux-amd64.tar.gz
+            dist/fidelius-linux-amd64.tar.gz.sha256
+            dist/fidelius-linux-arm64.tar.gz
+            dist/fidelius-linux-arm64.tar.gz.sha256

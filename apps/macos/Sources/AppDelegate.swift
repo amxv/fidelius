@@ -3,19 +3,15 @@ import Foundation
 import QuartzCore
 
 struct FideliusRequest {
-    let service: String
     let message: String?
     let accounts: [String]
-}
-
-private struct SavedKey: Codable {
-    let account: String
-    let length: Int
+    let autoDeleteLabel: String
+    let secretFD: Int32
 }
 
 private struct PromptResponse: Codable {
     let cancelled: Bool
-    let saved: [SavedKey]
+    let values: [String: String]
 }
 
 private final class FideliusSecureTextField: NSSecureTextField {
@@ -96,7 +92,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTe
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         if !didFinish {
-            emit(PromptResponse(cancelled: true, saved: []))
+            emit(PromptResponse(cancelled: true, values: [:]))
             didFinish = true
         }
         return .terminateNow
@@ -128,22 +124,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTe
             return
         }
 
-        do {
-            var saved: [SavedKey] = []
-            for account in request.accounts {
-                guard let value = fields[account]?.stringValue else { continue }
-                try saveAPIKey(service: request.service, account: account, value: value)
-                saved.append(SavedKey(account: account, length: value.count))
-            }
-            finish(PromptResponse(cancelled: false, saved: saved))
-        } catch {
-            showError(error.localizedDescription)
+        var values: [String: String] = [:]
+        for account in request.accounts {
+            guard let value = fields[account]?.stringValue else { continue }
+            values[account] = value
         }
+        finish(PromptResponse(cancelled: false, values: values))
     }
 
     @objc private func cancel(_ sender: Any?) {
         guard !didFinish else { return }
-        finish(PromptResponse(cancelled: true, saved: []))
+        finish(PromptResponse(cancelled: true, values: [:]))
     }
 
     private func finish(_ response: PromptResponse) {
@@ -154,9 +145,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTe
     }
 
     private func emit(_ response: PromptResponse) {
-        guard let data = try? JSONEncoder().encode(response) else { return }
-        FileHandle.standardOutput.write(data)
-        FileHandle.standardOutput.write(Data("\n".utf8))
+        guard let data = try? JSONEncoder().encode(response) else {
+            fputs("Fidelius could not encode the prompt response.\n", stderr)
+            return
+        }
+        let handle = FileHandle(fileDescriptor: request.secretFD, closeOnDealloc: false)
+        handle.write(data)
+        handle.write(Data("\n".utf8))
     }
 
     private func updateSaveButton() {
@@ -165,21 +160,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTe
         }
     }
 
-    private func showError(_ message: String) {
-        let alert = NSAlert()
-        alert.alertStyle = .warning
-        alert.messageText = "Couldn’t save the secrets"
-        alert.informativeText = message
-        if let window {
-            alert.beginSheetModal(for: window)
-        } else {
-            alert.runModal()
-        }
-    }
-
     private func showWindow() {
         let contentWidth: CGFloat = 376
-        let frame = NSRect(x: 0, y: 0, width: 420, height: 270)
+        let frame = NSRect(x: 0, y: 0, width: 420, height: 250)
         let window = NSWindow(
             contentRect: frame,
             styleMask: [.titled, .closable, .miniaturizable, .fullSizeContentView],
@@ -206,29 +189,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTe
 
         let header = makeHeader(width: contentWidth)
         root.addArrangedSubview(header)
-        root.setCustomSpacing(13, after: header)
-
-        let serviceRow = NSStackView()
-        serviceRow.orientation = .horizontal
-        serviceRow.alignment = .centerY
-        serviceRow.spacing = 9
-        let serviceTitle = NSTextField(labelWithString: "Service")
-        serviceTitle.font = .systemFont(ofSize: 11, weight: .medium)
-        serviceTitle.textColor = .tertiaryLabelColor
-        let serviceValue = NSTextField(labelWithString: request.service)
-        serviceValue.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
-        serviceValue.textColor = .secondaryLabelColor
-        serviceValue.lineBreakMode = .byTruncatingMiddle
-        serviceRow.addArrangedSubview(serviceTitle)
-        serviceRow.addArrangedSubview(serviceValue)
-        root.addArrangedSubview(serviceRow)
-
-        let separator = NSBox()
-        separator.boxType = .separator
-        separator.translatesAutoresizingMaskIntoConstraints = false
-        separator.widthAnchor.constraint(equalToConstant: contentWidth).isActive = true
-        root.addArrangedSubview(separator)
-        root.setCustomSpacing(13, after: separator)
+        root.setCustomSpacing(15, after: header)
 
         let fieldStack = makeFieldStack(width: contentWidth)
         if request.accounts.count <= 5 {
@@ -239,6 +200,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTe
             scrollView.hasVerticalScroller = true
             scrollView.borderType = .noBorder
             scrollView.translatesAutoresizingMaskIntoConstraints = false
+
             let document = NSView()
             document.translatesAutoresizingMaskIntoConstraints = false
             document.addSubview(fieldStack)
@@ -255,7 +217,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTe
             root.addArrangedSubview(scrollView)
         }
 
-        root.setCustomSpacing(16, after: fieldStack)
+        root.setCustomSpacing(12, after: fieldStack)
+        root.addArrangedSubview(makeAutoDeleteRow())
+        root.setCustomSpacing(15, after: root.arrangedSubviews.last!)
         root.addArrangedSubview(makeButtons(width: contentWidth))
 
         let content = NSVisualEffectView()
@@ -282,7 +246,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTe
 
         content.layoutSubtreeIfNeeded()
         let fittingHeight = content.fittingSize.height
-        window.setContentSize(NSSize(width: 420, height: min(540, max(220, fittingHeight))))
+        window.setContentSize(NSSize(width: 420, height: min(540, max(210, fittingHeight))))
         window.center()
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
@@ -354,6 +318,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTe
 
         stack.widthAnchor.constraint(equalToConstant: width).isActive = true
         return stack
+    }
+
+    private func makeAutoDeleteRow() -> NSView {
+        let row = NSStackView()
+        row.orientation = .horizontal
+        row.alignment = .centerY
+        row.spacing = 6
+
+        let icon = NSImageView()
+        icon.image = NSImage(systemSymbolName: "timer", accessibilityDescription: "Auto-delete")
+        icon.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 10, weight: .regular)
+        icon.contentTintColor = .tertiaryLabelColor
+        icon.translatesAutoresizingMaskIntoConstraints = false
+        icon.widthAnchor.constraint(equalToConstant: 12).isActive = true
+        icon.heightAnchor.constraint(equalToConstant: 12).isActive = true
+
+        let label = NSTextField(labelWithString: "Auto-delete in \(request.autoDeleteLabel)")
+        label.font = .systemFont(ofSize: 10.5)
+        label.textColor = .tertiaryLabelColor
+
+        row.addArrangedSubview(icon)
+        row.addArrangedSubview(label)
+        return row
     }
 
     private func makeButtons(width: CGFloat) -> NSView {
