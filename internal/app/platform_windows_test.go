@@ -3,9 +3,10 @@
 package app
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
+	"runtime"
 	"syscall"
 	"testing"
 	"time"
@@ -42,17 +43,21 @@ func TestWindowsSessionACLAndScheduledCleanup(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer os.RemoveAll(dir)
-	for _, path := range []string{dir, filepath.Join(dir, "TOKEN")} {
+	sid, err := currentUserSID()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i, path := range []string{dir, filepath.Join(dir, "TOKEN")} {
 		sddl, err := readFileDACL(path)
 		if err != nil {
 			t.Fatalf("read DACL for %s: %v", path, err)
 		}
-		sid, err := currentUserSID()
+		expected, err := canonicalUserDACL(sid, i == 0)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !strings.HasPrefix(sddl, "D:P") || !strings.Contains(sddl, sid) || strings.Count(sddl, "(") != 1 {
-			t.Fatalf("ACL does not protect %s for current user: %s", path, sddl)
+		if sddl != expected {
+			t.Fatalf("ACL does not protect %s for current user: got %s, want %s", path, sddl, expected)
 		}
 	}
 	if err := scheduleAutoDelete(dir, deleteAt); err != nil {
@@ -83,9 +88,35 @@ func readFileDACL(path string) (string, error) {
 	if r1 == 0 {
 		return "", callErr
 	}
+	sddl, err := descriptorDACLString(uintptr(unsafe.Pointer(&descriptor[0])))
+	runtime.KeepAlive(descriptor)
+	return sddl, err
+}
+
+func canonicalUserDACL(sid string, directory bool) (string, error) {
+	flags := ""
+	if directory {
+		flags = "OICI"
+	}
+	// Windows may serialize the invoking user's SID as an SDDL alias, such as LA.
+	sddl := fmt.Sprintf("D:P(A;%s;FA;;;%s)", flags, sid)
+	sddlPtr, err := syscall.UTF16PtrFromString(sddl)
+	if err != nil {
+		return "", err
+	}
+	var descriptor uintptr
+	r1, _, callErr := convertSDDL.Call(uintptr(unsafe.Pointer(sddlPtr)), 1, uintptr(unsafe.Pointer(&descriptor)), 0)
+	if r1 == 0 {
+		return "", callErr
+	}
+	defer syscall.LocalFree(syscall.Handle(descriptor))
+	return descriptorDACLString(descriptor)
+}
+
+func descriptorDACLString(descriptor uintptr) (string, error) {
 	var sddlPtr *uint16
 	var sddlLen uint32
-	r1, _, callErr = securityDescriptorToString.Call(uintptr(unsafe.Pointer(&descriptor[0])), 1, daclSecurityInformation, uintptr(unsafe.Pointer(&sddlPtr)), uintptr(unsafe.Pointer(&sddlLen)))
+	r1, _, callErr := securityDescriptorToString.Call(descriptor, 1, daclSecurityInformation, uintptr(unsafe.Pointer(&sddlPtr)), uintptr(unsafe.Pointer(&sddlLen)))
 	if r1 == 0 {
 		return "", callErr
 	}
