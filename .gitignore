@@ -16,3 +16,6 @@ npm-debug.log*
 /docs/dist
 /docs/.astro
 .vercel
+
+# Local lead queue
+.agents/gg/queue.md
