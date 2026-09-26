@@ -4,11 +4,17 @@ package app
 
 import (
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
+	"unsafe"
+)
+
+var (
+	getFileSecurity            = syscall.NewLazyDLL("advapi32.dll").NewProc("GetFileSecurityW")
+	securityDescriptorToString = syscall.NewLazyDLL("advapi32.dll").NewProc("ConvertSecurityDescriptorToStringSecurityDescriptorW")
 )
 
 func TestMain(m *testing.M) {
@@ -37,19 +43,15 @@ func TestWindowsSessionACLAndScheduledCleanup(t *testing.T) {
 	}
 	defer os.RemoveAll(dir)
 	for _, path := range []string{dir, filepath.Join(dir, "TOKEN")} {
-		cmd := exec.Command("powershell.exe", "-NoProfile", "-NonInteractive", "-Command", `[Console]::Out.Write((Get-Acl -LiteralPath $env:FIDELIUS_TEST_PATH).Sddl)`)
-		cmd.Env = append(os.Environ(), "FIDELIUS_TEST_PATH="+path)
-		output, err := cmd.Output()
+		sddl, err := readFileDACL(path)
 		if err != nil {
-			t.Fatalf("read ACL for %s: %v", path, err)
+			t.Fatalf("read DACL for %s: %v", path, err)
 		}
-		sddl := string(output)
-		dacl := strings.SplitN(sddl, "S:", 2)[0]
 		sid, err := currentUserSID()
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !strings.Contains(dacl, "D:P") || !strings.Contains(dacl, sid) || strings.Count(dacl, "(") != 1 {
+		if !strings.HasPrefix(sddl, "D:P") || !strings.Contains(sddl, sid) || strings.Count(sddl, "(") != 1 {
 			t.Fatalf("ACL does not protect %s for current user: %s", path, sddl)
 		}
 	}
@@ -64,4 +66,29 @@ func TestWindowsSessionACLAndScheduledCleanup(t *testing.T) {
 		time.Sleep(100 * time.Millisecond)
 	}
 	t.Fatal("scheduled Windows cleanup did not remove the session")
+}
+
+func readFileDACL(path string) (string, error) {
+	pathPtr, err := syscall.UTF16PtrFromString(path)
+	if err != nil {
+		return "", err
+	}
+	var needed uint32
+	_, _, callErr := getFileSecurity.Call(uintptr(unsafe.Pointer(pathPtr)), daclSecurityInformation, 0, 0, uintptr(unsafe.Pointer(&needed)))
+	if needed == 0 {
+		return "", callErr
+	}
+	descriptor := make([]byte, needed)
+	r1, _, callErr := getFileSecurity.Call(uintptr(unsafe.Pointer(pathPtr)), daclSecurityInformation, uintptr(unsafe.Pointer(&descriptor[0])), uintptr(needed), uintptr(unsafe.Pointer(&needed)))
+	if r1 == 0 {
+		return "", callErr
+	}
+	var sddlPtr *uint16
+	var sddlLen uint32
+	r1, _, callErr = securityDescriptorToString.Call(uintptr(unsafe.Pointer(&descriptor[0])), 1, daclSecurityInformation, uintptr(unsafe.Pointer(&sddlPtr)), uintptr(unsafe.Pointer(&sddlLen)))
+	if r1 == 0 {
+		return "", callErr
+	}
+	defer syscall.LocalFree(syscall.Handle(unsafe.Pointer(sddlPtr)))
+	return syscall.UTF16ToString(unsafe.Slice(sddlPtr, int(sddlLen))), nil
 }
