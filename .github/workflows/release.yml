@@ -87,8 +87,41 @@ jobs:
             dist/fidelius-linux-arm64.tar.gz
             dist/fidelius-linux-arm64.tar.gz.sha256
 
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: false
+      - name: Test Windows core
+        run: go test ./...
+      - name: Build Windows release
+        shell: pwsh
+        run: |
+          $version = $env:GITHUB_REF_NAME -replace '^v', ''
+          New-Item -ItemType Directory -Path dist -Force | Out-Null
+          go build -trimpath -ldflags "-s -w -X github.com/amxv/fidelius/internal/buildinfo.Version=$version" -o dist/fidelius.exe ./cmd/fidelius
+          Compress-Archive -Path dist/fidelius.exe -DestinationPath dist/fidelius-windows-amd64.zip
+          $hash = (Get-FileHash dist/fidelius-windows-amd64.zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  fidelius-windows-amd64.zip" | Set-Content -Path dist/fidelius-windows-amd64.zip.sha256
+      - name: Smoke test Windows installer
+        shell: pwsh
+        run: |
+          $smoke = Join-Path $env:RUNNER_TEMP 'fidelius-install-smoke'
+          & scripts/install.ps1 -InstallDir $smoke -AssetUrl (Resolve-Path dist/fidelius-windows-amd64.zip).Path -ChecksumUrl (Resolve-Path dist/fidelius-windows-amd64.zip.sha256).Path
+          & (Join-Path $smoke 'fidelius.exe') --help | Out-Null
+          & (Join-Path $smoke 'fidelius.exe') --version
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-release
+          path: |
+            dist/fidelius-windows-amd64.zip
+            dist/fidelius-windows-amd64.zip.sha256
+
   publish:
-    needs: [macos, linux]
+    needs: [macos, linux, windows]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
@@ -106,3 +139,5 @@ jobs:
             dist/fidelius-linux-amd64.tar.gz.sha256
             dist/fidelius-linux-arm64.tar.gz
             dist/fidelius-linux-arm64.tar.gz.sha256
+            dist/fidelius-windows-amd64.zip
+            dist/fidelius-windows-amd64.zip.sha256

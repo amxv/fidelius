@@ -173,10 +173,11 @@ func parseAsk(args []string) (askRequest, error) {
 		if err := validateSecretName(name); err != nil {
 			return askRequest{}, err
 		}
-		if _, ok := seen[name]; ok {
+		key := platformSecretNameKey(name)
+		if _, ok := seen[key]; ok {
 			return askRequest{}, fmt.Errorf("duplicate secret name %q", name)
 		}
-		seen[name] = struct{}{}
+		seen[key] = struct{}{}
 		req.names[i] = name
 	}
 	return req, nil

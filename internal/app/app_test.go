@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -95,11 +96,13 @@ func TestAskCreatesPrivateDirectoryWithoutPrintingValues(t *testing.T) {
 	if got, err := os.ReadFile(filepath.Join(dir, "OTHER_KEY")); err != nil || string(got) != "another-secret" {
 		t.Fatalf("OTHER_KEY=%q err=%v", got, err)
 	}
-	if info, err := os.Stat(dir); err != nil || info.Mode().Perm() != 0o700 {
-		t.Fatalf("directory mode=%v err=%v", infoMode(info), err)
-	}
-	if info, err := os.Stat(filepath.Join(dir, "MAPS_KEY")); err != nil || info.Mode().Perm() != 0o600 {
-		t.Fatalf("file mode=%v err=%v", infoMode(info), err)
+	if runtime.GOOS != "windows" {
+		if info, err := os.Stat(dir); err != nil || info.Mode().Perm() != 0o700 {
+			t.Fatalf("directory mode=%v err=%v", infoMode(info), err)
+		}
+		if info, err := os.Stat(filepath.Join(dir, "MAPS_KEY")); err != nil || info.Mode().Perm() != 0o600 {
+			t.Fatalf("file mode=%v err=%v", infoMode(info), err)
+		}
 	}
 	if !strings.Contains(errOut, "Received MAPS_KEY") || !strings.Contains(errOut, "Auto-delete in 5m") {
 		t.Fatalf("unexpected metadata: %q", errOut)

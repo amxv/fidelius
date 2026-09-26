@@ -14,7 +14,13 @@ An agent runs one blocking command. Fidelius opens a native desktop prompt, you 
 curl -fsSL https://fidelius.ashray.xyz/install.sh | bash
 ```
 
-Supports macOS 13+ and desktop Linux on amd64 and arm64. Linux uses the native `zenity` GTK dialog when available, with `kdialog` as the KDE fallback.
+On Windows (PowerShell):
+
+```powershell
+irm https://fidelius.ashray.xyz/install.ps1 | iex
+```
+
+Supports macOS 13+, desktop Linux on amd64 and arm64, and Windows on amd64. Linux uses the native `zenity` GTK dialog when available, with `kdialog` as the KDE fallback. Windows uses a native Windows Forms prompt through Windows PowerShell.
 
 ## Use
 
@@ -52,7 +58,9 @@ printf '\n' >> .env.local
   -w
 ```
 
-The files are private (`0700` directory, `0600` files), so an agent can safely retry a failed command without asking you for the secret again.
+The files are private (`0700` directory and `0600` files on macOS/Linux; an invoking-user-only Windows ACL), so an agent can safely retry a failed command without asking you for the secret again.
+
+On Windows PowerShell, capture the path with `$secrets = fidelius ask -m "Why I need this" TOKEN`. The file is at `(Join-Path $secrets 'TOKEN')`.
 
 ### Auto-delete timeout
 

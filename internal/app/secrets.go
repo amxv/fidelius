@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"syscall"
 	"time"
 )
 
@@ -21,7 +20,7 @@ func validateSecretName(name string) error {
 	if name == "." || name == ".." || strings.ContainsAny(name, "/\\\x00") {
 		return fmt.Errorf("invalid secret name %q", name)
 	}
-	return nil
+	return validatePlatformSecretName(name)
 }
 
 func writeSecretSession(values map[string]string, autoDelete time.Duration) (string, time.Time, error) {
@@ -36,7 +35,7 @@ func writeSecretSession(values map[string]string, autoDelete time.Duration) (str
 	if err != nil {
 		return "", time.Time{}, err
 	}
-	if err := os.Chmod(dir, 0o700); err != nil {
+	if err := securePrivateDirectory(dir); err != nil {
 		_ = os.RemoveAll(dir)
 		return "", time.Time{}, err
 	}
@@ -49,6 +48,11 @@ func writeSecretSession(values map[string]string, autoDelete time.Duration) (str
 		path := filepath.Join(dir, name)
 		file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
 		if err != nil {
+			_ = os.RemoveAll(dir)
+			return "", time.Time{}, err
+		}
+		if err := securePrivateFile(path); err != nil {
+			file.Close()
 			_ = os.RemoveAll(dir)
 			return "", time.Time{}, err
 		}
@@ -75,7 +79,7 @@ func scheduleAutoDelete(dir string, deleteAt time.Time) error {
 	cmd.Stdin = nil
 	cmd.Stdout = io.Discard
 	cmd.Stderr = io.Discard
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+	configureCleanupProcess(cmd)
 	if err := cmd.Start(); err != nil {
 		return err
 	}
@@ -149,15 +153,15 @@ func ensureSessionRoot() (string, error) {
 	if err := os.MkdirAll(root, 0o700); err != nil {
 		return "", err
 	}
-	if err := os.Chmod(root, 0o700); err != nil {
-		return "", err
-	}
 	info, err := os.Lstat(root)
 	if err != nil {
 		return "", err
 	}
 	if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
 		return "", fmt.Errorf("temporary root is not a private directory")
+	}
+	if err := securePrivateDirectory(root); err != nil {
+		return "", err
 	}
 	return root, nil
 }
@@ -166,7 +170,7 @@ func sessionRoot() (string, error) {
 	if override := strings.TrimSpace(os.Getenv("FIDELIUS_TEMP_ROOT")); override != "" {
 		return filepath.Clean(override), nil
 	}
-	return filepath.Join(os.TempDir(), fmt.Sprintf("fidelius-%d", os.Getuid())), nil
+	return defaultSessionRoot()
 }
 
 func validateSessionDir(dir string) error {

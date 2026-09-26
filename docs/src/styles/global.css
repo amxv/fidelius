@@ -38,6 +38,7 @@ button { color: inherit; }
 .install code { padding: 14px 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: "SFMono-Regular", Consolas, monospace; font-size: 12px; }
 .install button { flex: none; border: 0; border-left: 1px solid rgba(255,255,255,.13); padding: 0 16px; background: transparent; color: #d2d2d7; cursor: pointer; font-size: 12px; font-weight: 600; }
 .install button:hover { color: white; background: rgba(255,255,255,.05); }
+.install-windows { display: flex; width: fit-content; margin: 10px auto 0; }
 .meta { margin: 14px 0 0; color: #86868b; font-size: 12px; }
 
 .product-shot { position: relative; width: min(900px, 100%); margin: 76px auto 0; padding: 34px 0 10px; }
