@@ -19,3 +19,6 @@ npm-debug.log*
 
 # Local lead queue
 .agents/gg/queue.md
+
+# Local agent artifacts
+tmp/
