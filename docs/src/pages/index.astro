@@ -2,6 +2,7 @@
 import "../styles/global.css";
 
 const install = "curl -fsSL https://fidelius.ashray.xyz/install.sh | bash";
+const windowsInstall = "irm https://fidelius.ashray.xyz/install.ps1 | iex";
 const ask = `secrets=$(fidelius ask \\
   -m "I need the Google Maps API key to finish scraping restaurant menus." \\
   GOOGLE_MAPS_API_KEY)`;
@@ -22,7 +23,7 @@ security add-generic-password -U \\
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width" />
-    <meta name="description" content="Fidelius lets agents securely ask humans for secrets through native macOS and Linux prompts." />
+    <meta name="description" content="Fidelius lets agents securely ask humans for secrets through native macOS, Linux, and Windows prompts." />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>Fidelius — agents ask, humans paste</title>
   </head>
@@ -41,13 +42,17 @@ security add-generic-password -U \\
         <h1>Agents ask.<br /><span>You paste.</span></h1>
         <p class="hero-copy">
           Fidelius opens a native prompt when an agent needs a secret. You paste once. The agent gets private,
-          short-lived files it can use with the Unix tools it already knows.
+          short-lived files it can use with the tools it already knows.
         </p>
         <div class="install" aria-label="Install Fidelius">
           <code>{install}</code>
           <button data-copy={install}>Copy</button>
         </div>
-        <p class="meta">macOS + Linux · auto-delete after 5m by default · open source</p>
+        <div class="install install-windows" aria-label="Install Fidelius on Windows">
+          <code>{windowsInstall}</code>
+          <button data-copy={windowsInstall}>Copy</button>
+        </div>
+        <p class="meta">macOS + Linux + Windows · auto-delete after 5m by default · open source</p>
 
         <div class="product-shot">
           <div class="glow" aria-hidden="true"></div>
@@ -58,7 +63,7 @@ security add-generic-password -U \\
       <section class="story shell">
         <div class="story-heading">
           <p class="eyebrow">One new command</p>
-          <h2>Ask the human. Then go back to Unix.</h2>
+          <h2>Ask the human. Then use the files.</h2>
           <p>
             Fidelius returns only a private temporary directory path. Inside is one file per requested secret.
             Values never appear in Fidelius stdout or stderr.
@@ -132,7 +137,7 @@ fidelius timeout 2h</code></pre>
         <article>
           <div class="feature-icon">⌘</div>
           <h3>Native desktop UX.</h3>
-          <p>AppKit on macOS. Zenity on GTK desktops, with KDialog fallback on KDE. No webview or Electron.</p>
+          <p>AppKit on macOS. Zenity on GTK, KDialog on KDE, and Windows Forms on Windows. No webview or Electron.</p>
         </article>
         <article>
           <div class="feature-icon">Ⅱ</div>
@@ -147,6 +152,10 @@ fidelius timeout 2h</code></pre>
         <div class="install install-bottom">
           <code>{install}</code>
           <button data-copy={install}>Copy</button>
+        </div>
+        <div class="install install-windows">
+          <code>{windowsInstall}</code>
+          <button data-copy={windowsInstall}>Copy</button>
         </div>
       </section>
     </main>

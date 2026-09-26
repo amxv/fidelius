@@ -45,3 +45,24 @@ jobs:
           config="$(mktemp -d)"
           FIDELIUS_CONFIG_DIR="$config" dist/fidelius-linux-amd64 timeout 30s
           test "$(FIDELIUS_CONFIG_DIR="$config" dist/fidelius-linux-amd64 timeout)" = "Auto-delete timeout: 30s"
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: false
+      - run: go test ./...
+      - run: go vet ./...
+      - run: |
+          New-Item -ItemType Directory -Path dist -Force | Out-Null
+          go build -trimpath -o dist/fidelius-windows-amd64.exe ./cmd/fidelius
+      - shell: pwsh
+        run: |
+          & .\dist\fidelius-windows-amd64.exe --help | Out-Null
+          $config = Join-Path $env:RUNNER_TEMP 'fidelius-config-test'
+          $env:FIDELIUS_CONFIG_DIR = $config
+          & .\dist\fidelius-windows-amd64.exe timeout 30s
+          if ((& .\dist\fidelius-windows-amd64.exe timeout) -ne 'Auto-delete timeout: 30s') { throw 'timeout persistence failed' }

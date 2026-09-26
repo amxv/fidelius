@@ -1,9 +1,9 @@
-//go:build !darwin && !linux
+//go:build !darwin && !linux && !windows
 
 package app
 
 import "fmt"
 
 func platformPrompt(req promptRequest) (promptResult, error) {
-	return promptResult{}, fmt.Errorf("Fidelius currently supports macOS and Linux")
+	return promptResult{}, fmt.Errorf("Fidelius currently supports macOS, Linux, and Windows")
 }

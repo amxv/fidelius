@@ -8,7 +8,7 @@ MODULE := github.com/amxv/fidelius
 LDFLAGS := -s -w -X $(MODULE)/internal/buildinfo.Version=$(VERSION)
 UNAME_S := $(shell uname -s)
 
-.PHONY: help fmt test vet site-check site-build app-check check build build-universal build-linux install-local clean release-tag
+.PHONY: help fmt test vet site-check site-build app-check check build build-universal build-linux build-windows install-local clean release-tag
 
 help:
 	@echo "fidelius command runner"
@@ -18,6 +18,7 @@ help:
 	@echo "  make build           - build Fidelius for this machine"
 	@echo "  make build-universal - build universal macOS release artifacts"
 	@echo "  make build-linux     - build Linux amd64 + arm64 release binaries"
+	@echo "  make build-windows   - build Windows amd64 release binary"
 	@echo "  make install-local   - symlink the local build into ~/.local/bin"
 	@echo "  make site-build      - build the Astro landing page"
 	@echo "  make release-tag VERSION=x.y.z - push a GitHub release tag"
@@ -70,6 +71,10 @@ build-linux:
 	@mkdir -p $(DIST_DIR)
 	@CGO_ENABLED=0 GOOS=linux GOARCH=amd64 $(GO) build -trimpath -ldflags="$(LDFLAGS)" -o $(DIST_DIR)/fidelius-linux-amd64 ./cmd/fidelius
 	@CGO_ENABLED=0 GOOS=linux GOARCH=arm64 $(GO) build -trimpath -ldflags="$(LDFLAGS)" -o $(DIST_DIR)/fidelius-linux-arm64 ./cmd/fidelius
+
+build-windows:
+	@mkdir -p $(DIST_DIR)
+	@CGO_ENABLED=0 GOOS=windows GOARCH=amd64 $(GO) build -trimpath -ldflags="$(LDFLAGS)" -o $(DIST_DIR)/fidelius-windows-amd64.exe ./cmd/fidelius
 
 install-local: build
 	@mkdir -p $$HOME/.local/bin
