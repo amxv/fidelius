@@ -25,6 +25,7 @@ Keep Fidelius intentionally tiny.
 - Linux — uses Zenity when available, KDialog as fallback. The Go core remains toolkit-independent.
 - `scripts/install.sh` — macOS/Linux installer served unchanged from the landing-page domain.
 - `docs/` — self-contained Astro landing page.
+- `.github/workflows/docs-deploy.yml` — path-filtered website deployment. Watch `docs/**`, root installer scripts and `vercel.json`; Git-triggered Vercel deployments are disabled. Use a project-scoped `VERCEL_TOKEN` Actions secret and `VERCEL_ORG_ID`/`VERCEL_PROJECT_ID` variables. Keep this out of the public README.
 - `.github/workflows/` — macOS + Linux CI and tag-driven releases.
 
 Installed macOS layout:

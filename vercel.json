@@ -5,9 +5,6 @@
   "buildCommand": "cd docs && bun run build",
   "outputDirectory": "docs/dist",
   "git": {
-    "deploymentEnabled": {
-      "main": true,
-      "*": false
-    }
+    "deploymentEnabled": false
   }
 }

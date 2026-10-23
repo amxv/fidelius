@@ -1,0 +1,75 @@
+name: Docs
+
+# Filter on GitHub before Vercel creates a deployment. Both installers are
+# generated on this site from the corresponding root scripts.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/**'
+      - 'scripts/install.sh'
+      - 'scripts/install.ps1'
+      - 'vercel.json'
+      - '.github/workflows/docs-deploy.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'docs/**'
+      - 'scripts/install.sh'
+      - 'scripts/install.ps1'
+      - 'vercel.json'
+      - '.github/workflows/docs-deploy.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fidelius-docs-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.4.0'
+      - name: Install docs dependencies
+        working-directory: docs
+        run: bun install --frozen-lockfile
+      - name: Test deployment rules
+        working-directory: docs
+        run: bun run test:deployment
+      - name: Check Astro
+        working-directory: docs
+        run: bun run check
+      - name: Build site and package installer routes
+        if: >-
+          (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
+          github.ref == 'refs/heads/main'
+        working-directory: docs
+        run: |
+          set -euo pipefail
+          bun run build
+          cmp ../scripts/install.sh dist/install.sh
+          cmp ../scripts/install.ps1 dist/install.ps1
+          node scripts/prepare-prebuilt.mjs
+      - name: Deploy production website
+        if: >-
+          (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
+          github.ref == 'refs/heads/main'
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+        run: |
+          set -euo pipefail
+          test -n "$VERCEL_TOKEN" && test -n "$VERCEL_ORG_ID" && test -n "$VERCEL_PROJECT_ID"
+          mkdir -p .vercel
+          mv docs/.vercel/output .vercel/output
+          npx --yes vercel@latest deploy --prebuilt --prod --yes --non-interactive
