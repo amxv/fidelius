@@ -14,8 +14,9 @@ import (
 )
 
 type helperResponse struct {
-	Cancelled bool              `json:"cancelled"`
-	Values    map[string]string `json:"values"`
+	Cancelled      bool              `json:"cancelled"`
+	Values         map[string]string `json:"values"`
+	SaveToKeychain bool              `json:"saveToKeychain"`
 }
 
 func platformPrompt(req promptRequest) (promptResult, error) {
@@ -74,7 +75,7 @@ func platformPrompt(req promptRequest) (promptResult, error) {
 	if err := json.Unmarshal(result.data, &response); err != nil {
 		return promptResult{}, fmt.Errorf("Fidelius prompt returned an invalid response")
 	}
-	return promptResult{Cancelled: response.Cancelled, Values: response.Values}, nil
+	return promptResult{Cancelled: response.Cancelled, Values: response.Values, SaveToKeychain: response.SaveToKeychain}, nil
 }
 
 func helperExecutable() (string, error) {

@@ -13,7 +13,7 @@ Keep Fidelius intentionally tiny.
 - Directories are mode `0700`; secret files are mode `0600`.
 - Temporary sessions auto-delete after the configured timeout. Default: 5 minutes.
 - `fidelius timeout [DURATION]` is the only persistent preference surface.
-- Fidelius is not a secret manager and must not learn provider-specific destinations such as Keychain, dotenv, GitHub, Vercel, etc. Agents use ordinary Unix tools after the handoff.
+- Fidelius is not a secret manager and must not store credentials in provider-specific destinations such as Keychain, dotenv, GitHub, Vercel, etc. Agents use ordinary Unix tools after the handoff. The macOS prompt may relay the user's optional Keychain-saving request to the agent as a stderr message; Fidelius must never save to Keychain itself.
 - Human interaction and downstream secret use are intentionally decoupled so agents can retry failed commands without asking the human again.
 - Multiple concurrent invocations must remain independent.
 
