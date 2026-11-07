@@ -12,6 +12,7 @@ struct FideliusRequest {
 private struct PromptResponse: Codable {
     let cancelled: Bool
     let values: [String: String]
+    let saveToKeychain: Bool
 }
 
 private final class FideliusSecureTextField: NSSecureTextField {
@@ -78,6 +79,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTe
     private var window: NSWindow?
     private var fields: [String: FideliusSecureTextField] = [:]
     private var saveButton: NSButton?
+    private var keychainCheckbox: NSButton?
     private var didFinish = false
 
     init(request: FideliusRequest) {
@@ -92,7 +94,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTe
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         if !didFinish {
-            emit(PromptResponse(cancelled: true, values: [:]))
+            emit(PromptResponse(cancelled: true, values: [:], saveToKeychain: false))
             didFinish = true
         }
         return .terminateNow
@@ -129,12 +131,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTe
             guard let value = fields[account]?.stringValue else { continue }
             values[account] = value
         }
-        finish(PromptResponse(cancelled: false, values: values))
+        finish(PromptResponse(
+            cancelled: false,
+            values: values,
+            saveToKeychain: keychainCheckbox?.state == .on
+        ))
     }
 
     @objc private func cancel(_ sender: Any?) {
         guard !didFinish else { return }
-        finish(PromptResponse(cancelled: true, values: [:]))
+        finish(PromptResponse(cancelled: true, values: [:], saveToKeychain: false))
     }
 
     private func finish(_ response: PromptResponse) {
@@ -217,7 +223,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTe
             root.addArrangedSubview(scrollView)
         }
 
-        root.setCustomSpacing(12, after: fieldStack)
+        root.setCustomSpacing(12, after: root.arrangedSubviews.last!)
+        root.addArrangedSubview(makeKeychainCheckbox())
+        root.setCustomSpacing(10, after: root.arrangedSubviews.last!)
         root.addArrangedSubview(makeAutoDeleteRow())
         root.setCustomSpacing(15, after: root.arrangedSubviews.last!)
         root.addArrangedSubview(makeButtons(width: contentWidth))
@@ -341,6 +349,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTe
         row.addArrangedSubview(icon)
         row.addArrangedSubview(label)
         return row
+    }
+
+    private func makeKeychainCheckbox() -> NSButton {
+        let checkbox = NSButton(
+            checkboxWithTitle: "Tell agent to save to keychain.",
+            target: nil,
+            action: nil
+        )
+        checkbox.state = .off
+        checkbox.font = .systemFont(ofSize: 12)
+        keychainCheckbox = checkbox
+        return checkbox
     }
 
     private func makeButtons(width: CGFloat) -> NSView {

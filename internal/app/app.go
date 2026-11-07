@@ -25,8 +25,9 @@ type promptRequest struct {
 }
 
 type promptResult struct {
-	Cancelled bool
-	Values    map[string]string
+	Cancelled      bool
+	Values         map[string]string
+	SaveToKeychain bool
 }
 
 func Run(args []string, stdout, stderr io.Writer) int {
@@ -103,6 +104,9 @@ func runAsk(args []string, stdout, stderr io.Writer) int {
 	fmt.Fprintln(stdout, dir)
 	for _, name := range req.names {
 		fmt.Fprintf(stderr, "Received %s (%d chars).\n", name, len([]rune(result.Values[name])))
+	}
+	if result.SaveToKeychain {
+		fmt.Fprintln(stderr, "User requested secrets to be saved to keychain.")
 	}
 	fmt.Fprintf(stderr, "Auto-delete in %s.\n", formatDurationShort(autoDelete))
 	return 0

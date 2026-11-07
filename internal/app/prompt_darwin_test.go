@@ -12,7 +12,7 @@ func TestDarwinPromptUsesPrivateInheritedPipe(t *testing.T) {
 	dir := t.TempDir()
 	helper := filepath.Join(dir, "helper")
 	script := `#!/bin/sh
-printf '%s\n' '{"cancelled":false,"values":{"TOKEN":"private-value"}}' >&3
+printf '%s\n' '{"cancelled":false,"values":{"TOKEN":"private-value"},"saveToKeychain":true}' >&3
 `
 	if err := os.WriteFile(helper, []byte(script), 0o755); err != nil {
 		t.Fatal(err)
@@ -29,6 +29,29 @@ printf '%s\n' '{"cancelled":false,"values":{"TOKEN":"private-value"}}' >&3
 	}
 	if result.Cancelled || result.Values["TOKEN"] != "private-value" {
 		t.Fatalf("unexpected result: %#v", result)
+	}
+	if !result.SaveToKeychain {
+		t.Fatalf("expected Keychain request to round-trip: %#v", result)
+	}
+}
+
+func TestDarwinPromptLegacyResponseDefaultsKeychainRequestToFalse(t *testing.T) {
+	dir := t.TempDir()
+	helper := filepath.Join(dir, "helper")
+	script := `#!/bin/sh
+printf '%s\n' '{"cancelled":false,"values":{"TOKEN":"private-value"}}' >&3
+`
+	if err := os.WriteFile(helper, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("FIDELIUS_APP_EXECUTABLE", helper)
+
+	result, err := platformPrompt(promptRequest{Names: []string{"TOKEN"}, AutoDeleteLabel: "5 minutes"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.SaveToKeychain {
+		t.Fatalf("absent Keychain flag must default to false: %#v", result)
 	}
 }
 

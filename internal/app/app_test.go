@@ -107,19 +107,61 @@ func TestAskCreatesPrivateDirectoryWithoutPrintingValues(t *testing.T) {
 	if !strings.Contains(errOut, "Received MAPS_KEY") || !strings.Contains(errOut, "Auto-delete in 5m") {
 		t.Fatalf("unexpected metadata: %q", errOut)
 	}
+	if strings.Contains(errOut, "User requested secrets to be saved to keychain.") {
+		t.Fatalf("unchecked Keychain option should not appear: %q", errOut)
+	}
+}
+
+func TestAskKeychainRequestReportsOnlyOnStderr(t *testing.T) {
+	isolateTestStorage(t)
+	oldPrompt := launchPrompt
+	oldSchedule := scheduleDelete
+	launchPrompt = func(promptRequest) (promptResult, error) {
+		return promptResult{
+			Values:         map[string]string{"TOKEN": "private-value"},
+			SaveToKeychain: true,
+		}, nil
+	}
+	scheduleDelete = func(string, time.Time) error { return nil }
+	t.Cleanup(func() {
+		launchPrompt = oldPrompt
+		scheduleDelete = oldSchedule
+	})
+
+	code, out, errOut := runForTest(t, "ask", "TOKEN")
+	if code != 0 {
+		t.Fatalf("code=%d stdout=%q stderr=%q", code, out, errOut)
+	}
+	dir := strings.TrimSpace(out)
+	if dir == "" || out != dir+"\n" {
+		t.Fatalf("stdout must contain only the secret directory: %q", out)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "TOKEN")); err != nil {
+		t.Fatalf("secret file missing: %v", err)
+	}
+	message := "User requested secrets to be saved to keychain."
+	if strings.Count(errOut, message) != 1 {
+		t.Fatalf("expected one Keychain request on stderr: %q", errOut)
+	}
+	if strings.Contains(out, message) || strings.Contains(errOut, "private-value") {
+		t.Fatalf("unexpected output: stdout=%q stderr=%q", out, errOut)
+	}
 }
 
 func TestAskCancellationLeavesStdoutEmpty(t *testing.T) {
 	isolateTestStorage(t)
 	oldPrompt := launchPrompt
 	launchPrompt = func(promptRequest) (promptResult, error) {
-		return promptResult{Cancelled: true}, nil
+		return promptResult{Cancelled: true, SaveToKeychain: true}, nil
 	}
 	t.Cleanup(func() { launchPrompt = oldPrompt })
 
 	code, out, errOut := runForTest(t, "ask", "TOKEN")
 	if code != 2 || out != "" || !strings.Contains(errOut, "Cancelled") {
 		t.Fatalf("code=%d stdout=%q stderr=%q", code, out, errOut)
+	}
+	if strings.Contains(errOut, "User requested secrets to be saved to keychain.") {
+		t.Fatalf("cancelled requests should not print Keychain instructions: %q", errOut)
 	}
 }
 
