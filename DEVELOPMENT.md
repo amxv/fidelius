@@ -4,14 +4,14 @@ Fidelius keeps the platform-specific GUI separate from the portable secret hando
 
 - `cmd/fidelius/` and `internal/app/` — Go CLI, temporary files, auto-delete lifecycle, timeout configuration, and platform prompt adapters
 - `apps/macos/` — native Swift/AppKit prompt and app icon
-- `internal/app/prompt_linux.go` — Linux desktop prompt through Zenity, with KDialog fallback
-- `internal/app/prompt_windows.go` and `prompt_windows.ps1` — native Windows Forms prompt through Windows PowerShell
+- `internal/app/prompt_linux.go` — Linux desktop adapter for the GTK 4 and Qt 6 frontends in `apps/linux/`
+- `internal/app/prompt_windows.go` and `apps/windows/` use Win32 controls and embedded icon/manifest resources
 - `docs/` — Astro landing page and `/install.sh` endpoint
 - `scripts/install.sh` and `scripts/install.ps1` — platform installers
 
 The Go core never stores secrets permanently. After the human submits, it creates a private temporary directory with one `0600` file per secret and starts an independent auto-delete process. Each new Fidelius invocation also removes stale sessions whose auto-delete time has passed.
 
-On macOS, the AppKit helper sends values to Go through a dedicated inherited file descriptor, not stdout or stderr. On Linux and Windows, Fidelius captures the native dialog helper's output in a private pipe and never forwards it to the terminal. Windows session directories and files have an ACL that grants access only to the invoking user. PowerShell stderr is discarded so a helper error cannot expose a value.
+On macOS, the AppKit helper sends values to Go through a dedicated inherited file descriptor, not stdout or stderr. Linux launches a packaged helper with request metadata on stdin and receives the submitted values on inherited FD 3. Windows collects values directly from password edits in the CLI process. Windows session directories and files grant access only to the invoking user.
 
 ## Local setup
 
@@ -50,16 +50,13 @@ FIDELIUS_CONFIG_DIR="$(mktemp -d)" fidelius timeout 3s
 
 ## Linux
 
-Desktop Linux uses the native dialog helper already appropriate for the user's environment:
+Linux packages contain a static Go CLI and two dynamically linked helpers. Build the host package with `make build` on Linux with a C/C++ compiler, pkg-config, GTK 4 and Qt 6 Widgets development packages. `make build-linux` cross-builds both Go binaries. `make build-linux-ui` builds the helpers for the host architecture. Release jobs build native amd64 and arm64 packages against Debian 12 system libraries. Each tarball contains `fidelius` and `fidelius-ui/` together.
 
-1. `zenity` — GTK form with all requested password fields in one window
-2. `kdialog` — KDE fallback; multiple secrets are requested sequentially
-
-If neither is installed, `fidelius ask` explains what to install. The release binary itself is static and has no GUI toolkit dependency.
+At runtime only one toolkit and its display backend are required. For example, on Debian 12 install `libgtk-4-1` for GTK or `libqt6widgets6` and `qt6-wayland` for Plasma Wayland. The helpers honor the toolkit's Wayland/X11 selection. The installer switches the CLI symlink to a checksum-specific package under the selected bin directory and installs desktop identity files under `XDG_DATA_HOME`. Earlier packages remain available to active prompts and cleanup processes. Pinned CLI-only releases still install.
 
 ## Windows
 
-The Windows binary embeds a Windows Forms prompt and uses the built-in Windows PowerShell 5.1 to display it. `fidelius ask` needs an interactive Windows desktop session. The PowerShell installer verifies the release ZIP against its SHA-256 file and installs `fidelius.exe` in `%USERPROFILE%\.local\bin`, adding that directory to the user PATH. Open a new PowerShell window after installation.
+The Windows 10/11 amd64 console executable opens a Win32 dialog on the calling thread. `make build-windows` first generates the manifest and icon resource object with the pinned rsrc tool. The multi-size ICO derives from the macOS lock artwork. An interactive desktop is required for `ask`. The PowerShell installer verifies the ZIP checksum, installs the EXE in `%USERPROFILE%\.local\bin`, and adds that directory to the user PATH.
 
 ## Landing page
 
@@ -95,7 +92,7 @@ make release-tag VERSION=x.y.z
 The release workflow publishes:
 
 - universal macOS CLI + `Fidelius.app`
-- Linux amd64 CLI
-- Linux arm64 CLI
+- Linux amd64 CLI and GUI helpers
+- Linux arm64 CLI and GUI helpers
 - Windows amd64 CLI
 - SHA-256 checksum for each archive

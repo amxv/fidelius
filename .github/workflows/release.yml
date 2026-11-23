@@ -47,45 +47,43 @@ jobs:
             dist/fidelius-darwin-universal.tar.gz.sha256
 
   linux:
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - {arch: amd64, runner: ubuntu-24.04}
+          - {arch: arm64, runner: ubuntu-24.04-arm}
+    runs-on: ${{ matrix.runner }}
+    container: debian:bookworm
     steps:
+      - name: Install build dependencies
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends git ca-certificates curl make g++ pkg-config libgtk-4-dev qt6-base-dev
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
           cache: false
-      - name: Test Linux core
-        run: go test ./...
-      - name: Build Linux releases
+      - run: go test ./...
+      - name: Build and verify Linux package
+        shell: bash
+        env:
+          ARCH: ${{ matrix.arch }}
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          mkdir -p dist
-          for arch in amd64 arm64; do
-            CGO_ENABLED=0 GOOS=linux GOARCH="$arch" \
-              go build -trimpath -ldflags="-s -w -X github.com/amxv/fidelius/internal/buildinfo.Version=$VERSION" \
-              -o "dist/fidelius-$arch" ./cmd/fidelius
-            mkdir -p "dist/package-$arch"
-            cp "dist/fidelius-$arch" "dist/package-$arch/fidelius"
-            tar -C "dist/package-$arch" -czf "dist/fidelius-linux-$arch.tar.gz" fidelius
-            (cd dist && shasum -a 256 "fidelius-linux-$arch.tar.gz" > "fidelius-linux-$arch.tar.gz.sha256")
-          done
-      - name: Smoke test Linux installer
-        run: |
+          test "$(go env GOARCH)" = "$ARCH"
+          CGO_ENABLED=0 make build VERSION="${GITHUB_REF_NAME#v}"
+          asset="fidelius-linux-$ARCH.tar.gz"
+          tar -C dist -czf "dist/$asset" fidelius fidelius-ui
+          (cd dist && sha256sum "$asset" > "$asset.sha256")
           smoke="$(mktemp -d)"
-          FIDELIUS_INSTALL_DIR="$smoke/bin" \
-          FIDELIUS_ASSET_URL="file://${GITHUB_WORKSPACE}/dist/fidelius-linux-amd64.tar.gz" \
-          FIDELIUS_CHECKSUM_URL="file://${GITHUB_WORKSPACE}/dist/fidelius-linux-amd64.tar.gz.sha256" \
-            bash scripts/install.sh
-          "$smoke/bin/fidelius" --help >/dev/null
+          FIDELIUS_INSTALL_DIR="$smoke/bin" XDG_DATA_HOME="$smoke/share" \
+            FIDELIUS_ASSET_URL="file://$PWD/dist/$asset" bash scripts/install.sh
           "$smoke/bin/fidelius" --version
+          test -x "$(dirname "$(readlink -f "$smoke/bin/fidelius")")/fidelius-ui/qt"
       - uses: actions/upload-artifact@v4
         with:
-          name: linux-release
-          path: |
-            dist/fidelius-linux-amd64.tar.gz
-            dist/fidelius-linux-amd64.tar.gz.sha256
-            dist/fidelius-linux-arm64.tar.gz
-            dist/fidelius-linux-arm64.tar.gz.sha256
+          name: linux-${{ matrix.arch }}-release
+          path: dist/*.tar.gz*
 
   windows:
     runs-on: windows-latest
@@ -101,8 +99,9 @@ jobs:
         shell: pwsh
         run: |
           $version = $env:GITHUB_REF_NAME -replace '^v', ''
-          New-Item -ItemType Directory -Path dist -Force | Out-Null
-          go build -trimpath -ldflags "-s -w -X github.com/amxv/fidelius/internal/buildinfo.Version=$version" -o dist/fidelius.exe ./cmd/fidelius
+          make build-windows VERSION=$version
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          Copy-Item dist/fidelius-windows-amd64.exe dist/fidelius.exe
           Compress-Archive -Path dist/fidelius.exe -DestinationPath dist/fidelius-windows-amd64.zip
           $hash = (Get-FileHash dist/fidelius-windows-amd64.zip -Algorithm SHA256).Hash.ToLowerInvariant()
           "$hash  fidelius-windows-amd64.zip" | Set-Content -Path dist/fidelius-windows-amd64.zip.sha256

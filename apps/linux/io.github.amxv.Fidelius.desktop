@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Fidelius
+Exec=fidelius
+Icon=io.github.amxv.Fidelius
+StartupWMClass=io.github.amxv.Fidelius
+NoDisplay=true
+Terminal=false

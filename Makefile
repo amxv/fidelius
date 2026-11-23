@@ -8,7 +8,7 @@ MODULE := github.com/amxv/fidelius
 LDFLAGS := -s -w -X $(MODULE)/internal/buildinfo.Version=$(VERSION)
 UNAME_S := $(shell uname -s)
 
-.PHONY: help fmt test vet site-check site-build app-check check build build-universal build-linux build-windows install-local clean release-tag
+.PHONY: help fmt test vet site-check site-build app-check check build build-universal build-linux build-windows build-linux-ui windows-resources install-local clean release-tag
 
 help:
 	@echo "fidelius command runner"
@@ -49,6 +49,10 @@ endif
 
 check: fmt test vet site-check app-check
 
+ifeq ($(UNAME_S),Linux)
+build: build-linux-ui
+endif
+
 build:
 	@mkdir -p $(DIST_DIR)
 	@rm -f $(DIST_DIR)/fidelius
@@ -72,7 +76,13 @@ build-linux:
 	@CGO_ENABLED=0 GOOS=linux GOARCH=amd64 $(GO) build -trimpath -ldflags="$(LDFLAGS)" -o $(DIST_DIR)/fidelius-linux-amd64 ./cmd/fidelius
 	@CGO_ENABLED=0 GOOS=linux GOARCH=arm64 $(GO) build -trimpath -ldflags="$(LDFLAGS)" -o $(DIST_DIR)/fidelius-linux-arm64 ./cmd/fidelius
 
-build-windows:
+windows-resources:
+	@$(GO) run github.com/akavel/rsrc@v0.10.2 -arch amd64 -manifest apps/windows/fidelius.manifest -ico apps/windows/fidelius.ico -o cmd/fidelius/rsrc_windows_amd64.syso
+
+build-linux-ui:
+	@bash apps/linux/build.sh "$(DIST_DIR)"
+
+build-windows: windows-resources
 	@mkdir -p $(DIST_DIR)
 	@CGO_ENABLED=0 GOOS=windows GOARCH=amd64 $(GO) build -trimpath -ldflags="$(LDFLAGS)" -o $(DIST_DIR)/fidelius-windows-amd64.exe ./cmd/fidelius
 

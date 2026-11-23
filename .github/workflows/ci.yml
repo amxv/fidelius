@@ -37,6 +37,9 @@ jobs:
       - uses: oven-sh/setup-bun@v2
       - run: cd docs && bun install --frozen-lockfile
       - run: make check
+      - run: sudo apt-get update && sudo apt-get install -y libgtk-4-dev qt6-base-dev xvfb xdotool xauth
+      - run: make build-linux-ui
+      - run: xvfb-run -a python3 apps/linux/smoke.py dist/fidelius-ui
       - run: make build-linux VERSION=0.0.0
       - run: |
           file dist/fidelius-linux-amd64
@@ -56,9 +59,8 @@ jobs:
           cache: false
       - run: go test ./...
       - run: go vet ./...
-      - run: |
-          New-Item -ItemType Directory -Path dist -Force | Out-Null
-          go build -trimpath -o dist/fidelius-windows-amd64.exe ./cmd/fidelius
+      - run: make build-windows VERSION=0.0.0
+      - run: ./apps/windows/smoke.ps1
       - shell: pwsh
         run: |
           & .\dist\fidelius-windows-amd64.exe --help | Out-Null

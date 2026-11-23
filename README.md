@@ -20,7 +20,7 @@ On Windows (PowerShell):
 irm https://fidelius.ashray.xyz/install.ps1 | iex
 ```
 
-Supports macOS 13+, desktop Linux on amd64 and arm64, and Windows on amd64. Linux uses the native `zenity` GTK dialog when available, with `kdialog` as the KDE fallback. Windows uses a native Windows Forms prompt through Windows PowerShell.
+Supports macOS 13+, desktop Linux on amd64 and arm64, and Windows 10/11 on amd64. Linux ships GTK 4 and Qt 6 Widgets prompts. Plasma prefers Qt, and other desktops prefer GTK. Install either runtime with its Wayland or X11 backend. Windows uses a Win32 dialog built into the CLI.
 
 ## Use
 

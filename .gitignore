@@ -22,3 +22,6 @@ npm-debug.log*
 
 # Local agent artifacts
 tmp/
+
+# Generated Win32 resources
+/cmd/fidelius/rsrc_windows_amd64.syso

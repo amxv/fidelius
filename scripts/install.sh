@@ -14,10 +14,6 @@ log() {
   printf '[fidelius install] %s\n' "$*"
 }
 
-warn() {
-  printf '[fidelius install] WARNING: %s\n' "$*" >&2
-}
-
 command -v curl >/dev/null 2>&1 || die "curl is required"
 if command -v shasum >/dev/null 2>&1; then
   checksum_file() { shasum -a 256 "$1" | awk '{print $1}'; }
@@ -91,7 +87,31 @@ tar -xzf "${archive}" -C "${temporary}/payload"
 mkdir -p "${install_dir}"
 binary_temp="${install_dir}/.fidelius.install.$$"
 rm -f "${binary_temp}"
-install -m 0755 "${temporary}/payload/fidelius" "${binary_temp}"
+if [[ "${os}" == "Linux" && -d "${temporary}/payload/fidelius-ui" ]]; then
+  # Resolve the CLI and helpers through one atomic symlink switch.
+  payload="${temporary}/payload"
+  for helper in gtk qt; do
+    [[ -x "${payload}/fidelius-ui/${helper}" ]] || die "release is missing the ${helper} prompt"
+  done
+  packages="${install_dir}/.fidelius-packages"
+  mkdir -p "${packages}"
+  if [[ ! -d "${packages}/${actual}" ]]; then
+    staged="$(mktemp -d "${packages}/stage.XXXXXX")"
+    trap 'rm -rf "${temporary}" "${staged}"' EXIT
+    cp -R "${payload}/." "${staged}/"
+    mv -T "${staged}" "${packages}/${actual}" || [[ -d "${packages}/${actual}" ]]
+  fi
+  identity=io.github.amxv.Fidelius
+  data_home="${XDG_DATA_HOME:-${HOME}/.local/share}"
+  icon_dir="${data_home}/icons/hicolor/scalable/apps"
+  mkdir -p "${data_home}/applications" "${icon_dir}"
+  install -m 0644 "${payload}/fidelius-ui/${identity}.svg" "${icon_dir}/${identity}.svg"
+  install -m 0644 "${payload}/fidelius-ui/${identity}.desktop" "${data_home}/applications/${identity}.desktop"
+  ln -s ".fidelius-packages/${actual}/fidelius" "${binary_temp}"
+else
+  # Also support installing older CLI-only Linux archives by version.
+  install -m 0755 "${temporary}/payload/fidelius" "${binary_temp}"
+fi
 mv -f "${binary_temp}" "${install_dir}/fidelius"
 log "installed fidelius to ${install_dir}/fidelius"
 
@@ -110,14 +130,7 @@ if [[ "${os}" == "Darwin" ]]; then
   rm -rf "${app_destination}"
   mv "${app_temp}" "${app_destination}"
   log "installed Fidelius.app to ${app_destination}"
-else
-  if command -v zenity >/dev/null 2>&1; then
-    log "Linux prompt: zenity"
-  elif command -v kdialog >/dev/null 2>&1; then
-    log "Linux prompt: kdialog"
-  else
-    warn "no desktop dialog helper found; install zenity (GTK) or kdialog (KDE) before running 'fidelius ask'"
-  fi
+
 fi
 
 case ":${PATH}:" in
