@@ -36,6 +36,8 @@ button { color: inherit; }
 .hero-copy { max-width: 770px; margin: 32px auto 30px; color: var(--muted); font-size: clamp(20px, 2.4vw, 25px); line-height: 1.35; letter-spacing: -.025em; }
 .install { display: inline-flex; align-items: stretch; max-width: min(100%, 620px); overflow: hidden; border-radius: 12px; background: var(--code); color: var(--code-ink); box-shadow: 0 1px 0 rgba(255,255,255,.08) inset, 0 12px 30px rgba(0,0,0,.11); }
 .install code { padding: 14px 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: "SFMono-Regular", Consolas, monospace; font-size: 12px; }
+.install-platforms { display: flex; flex: none; align-items: center; gap: 4px; margin-inline: 16px 8px; color: var(--code-muted); }
+.install-platforms + code { padding-inline-start: 0; }
 .install button { flex: none; border: 0; border-left: 1px solid rgba(255,255,255,.13); padding: 0 16px; background: transparent; color: #d2d2d7; cursor: pointer; font-size: 12px; font-weight: 600; }
 .install button:hover { color: white; background: rgba(255,255,255,.05); }
 .install-windows { display: flex; width: fit-content; margin: 10px auto 0; }
