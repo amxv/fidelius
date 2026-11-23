@@ -60,6 +60,9 @@ jobs:
           apt-get update
           apt-get install -y --no-install-recommends git ca-certificates curl make g++ pkg-config libgtk-4-dev qt6-base-dev
       - uses: actions/checkout@v7
+      # Checkout configures Git under a temporary home that later steps do not use.
+      - name: Trust the checkout for Go VCS stamping
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
