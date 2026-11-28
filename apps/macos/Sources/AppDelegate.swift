@@ -43,6 +43,11 @@ private final class FideliusSecureTextField: NSSecureTextField {
     }
 }
 
+/// Top-anchored scroll document so overflowing secret fields start at the first one.
+private final class FlippedView: NSView {
+    override var isFlipped: Bool { true }
+}
+
 private final class AdaptiveTintView: NSView {
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -80,6 +85,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTe
     private var fields: [String: FideliusSecureTextField] = [:]
     private var saveButton: NSButton?
     private var keychainCheckbox: NSButton?
+    private var messageScrollView: NSScrollView?
     private var didFinish = false
 
     init(request: FideliusRequest) {
@@ -207,7 +213,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTe
             scrollView.borderType = .noBorder
             scrollView.translatesAutoresizingMaskIntoConstraints = false
 
-            let document = NSView()
+            let document = FlippedView()
             document.translatesAutoresizingMaskIntoConstraints = false
             document.addSubview(fieldStack)
             NSLayoutConstraint.activate([
@@ -254,10 +260,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTe
 
         content.layoutSubtreeIfNeeded()
         let fittingHeight = content.fittingSize.height
-        window.setContentSize(NSSize(width: 420, height: min(540, max(210, fittingHeight))))
+        window.setContentSize(NSSize(width: 420, height: max(210, fittingHeight)))
         window.center()
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
+        messageScrollView?.flashScrollers()
 
         if let first = request.accounts.first, let field = fields[first] {
             window.makeFirstResponder(field)
@@ -276,22 +283,42 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTe
         symbol.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 15, weight: .semibold)
         symbol.contentTintColor = .secondaryLabelColor
         symbol.translatesAutoresizingMaskIntoConstraints = false
-        symbol.widthAnchor.constraint(equalToConstant: 18).isActive = true
-        symbol.heightAnchor.constraint(equalToConstant: 18).isActive = true
 
         let explanation = request.message?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let message = wrappingLabel(
-            explanation?.isEmpty == false ? explanation! : "Paste the requested secrets.",
-            width: width - 27
+        let message = MessageView.make(
+            text: explanation?.isEmpty == false ? explanation! : "Paste the requested secrets.",
+            width: width - 27,
+            maxHeight: messageMaxHeight()
         )
-        message.font = .systemFont(ofSize: 13.5, weight: .medium)
-        message.textColor = .labelColor
-        message.maximumNumberOfLines = 3
+        messageScrollView = message.scrollView
 
-        row.addArrangedSubview(symbol)
-        row.addArrangedSubview(message)
+        // Keep the lock level with the first line, including inside the scrolling well.
+        let symbolSlot = NSView()
+        symbolSlot.translatesAutoresizingMaskIntoConstraints = false
+        symbolSlot.addSubview(symbol)
+        let symbolTop = message.scrollView == nil ? 0 : MessageView.wellInset.height
+        NSLayoutConstraint.activate([
+            symbol.widthAnchor.constraint(equalToConstant: 18),
+            symbol.heightAnchor.constraint(equalToConstant: 18),
+            symbol.leadingAnchor.constraint(equalTo: symbolSlot.leadingAnchor),
+            symbol.trailingAnchor.constraint(equalTo: symbolSlot.trailingAnchor),
+            symbol.topAnchor.constraint(equalTo: symbolSlot.topAnchor, constant: symbolTop),
+            symbolSlot.heightAnchor.constraint(equalToConstant: 18 + symbolTop),
+        ])
+
+        row.addArrangedSubview(symbolSlot)
+        row.addArrangedSubview(message.view)
         row.widthAnchor.constraint(equalToConstant: width).isActive = true
         return row
+    }
+
+    /// Long messages grow the window until this height, then scroll. The cap
+    /// shrinks on small screens and when the secret fields themselves scroll.
+    private func messageMaxHeight() -> CGFloat {
+        let preferred: CGFloat = request.accounts.count <= 5 ? 240 : 150
+        let visible = (NSScreen.main ?? NSScreen.screens.first)?.visibleFrame.height ?? 800
+        let fieldsHeight = (request.accounts.count <= 5 ? CGFloat(request.accounts.count) * 52 : 290) + 170
+        return max(84, min(preferred, visible - fieldsHeight - 120))
     }
 
     private func makeFieldStack(width: CGFloat) -> NSStackView {
@@ -391,14 +418,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTe
 
         row.widthAnchor.constraint(equalToConstant: width).isActive = true
         return row
-    }
-
-    private func wrappingLabel(_ text: String, width: CGFloat) -> NSTextField {
-        let label = NSTextField(wrappingLabelWithString: text)
-        label.font = .systemFont(ofSize: 12.5)
-        label.maximumNumberOfLines = 3
-        label.preferredMaxLayoutWidth = width
-        return label
     }
 
     private func buildMenus() {

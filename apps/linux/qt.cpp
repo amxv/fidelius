@@ -28,7 +28,9 @@ int main(int argc, char **argv) {
     auto *body = new QWidget;
     auto *form = new QVBoxLayout(body);
     form->setAlignment(Qt::AlignTop);
-    form->addWidget(label(QString::fromUtf8(message)));
+    auto *intro = label(QString::fromUtf8(message));
+    intro->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    form->addWidget(intro);
     QList<QLineEdit *> fields;
     while (char *raw = next_string()) {
         QString name = QString::fromUtf8(raw);

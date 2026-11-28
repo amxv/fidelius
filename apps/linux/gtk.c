@@ -61,7 +61,9 @@ int main(void) {
     gtk_widget_set_margin_top(body, 16);
     gtk_widget_set_margin_bottom(body, 16);
     gtk_scrolled_window_set_child(GTK_SCROLLED_WINDOW(scroll), body);
-    gtk_box_append(GTK_BOX(body), label(message));
+    GtkWidget *intro = label(message);
+    gtk_label_set_selectable(GTK_LABEL(intro), TRUE);
+    gtk_box_append(GTK_BOX(body), intro);
     char *name;
     while ((name = next_string())) {
         GtkWidget *caption = label(name);
